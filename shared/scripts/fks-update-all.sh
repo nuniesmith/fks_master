@@ -12,7 +12,7 @@ for service in "${SERVICES[@]}"; do
         cd "$FKS_ROOT/$service"
         
         # Copy service management script
-        cp "$FKS_ROOT/shared/shared_scripts/templates/fks-service.sh" ./
+        cp "$FKS_ROOT/shared/scripts/templates/fks-service.sh" ./
         
         # Set service-specific environment
         SERVICE_NAME=$(echo "$service" | tr '_' '-')

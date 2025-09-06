@@ -3,7 +3,7 @@ set -euo pipefail
 
 # -----------------------------------------------------------------------------
 # generate_compose.sh
-#   Dynamic docker compose generator leveraging shared/shared_docker Dockerfile.
+#   Dynamic docker compose generator leveraging shared/docker Dockerfile.
 #   Profiles:
 #     minimal -> api + web
 #     core    -> api + data + worker + engine + transformer + web
@@ -50,7 +50,7 @@ fi
 
 # Locate shared Dockerfile
 SHARED_DOCKERFILE=""
-for candidate in ../../shared/docker/Dockerfile ../shared/docker/Dockerfile ./shared/shared_docker/Dockerfile; do
+for candidate in ../../shared/docker/Dockerfile ../shared/docker/Dockerfile ./shared/docker/Dockerfile; do
   if [[ -f "$candidate" ]]; then SHARED_DOCKERFILE=$candidate; break; fi
 done
 if [[ -z "$SHARED_DOCKERFILE" ]]; then

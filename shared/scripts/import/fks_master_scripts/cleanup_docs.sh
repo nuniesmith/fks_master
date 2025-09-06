@@ -50,7 +50,7 @@ DOCS_DIR=${DOCS_DIR:-"$ROOT_DIR/docs"}
 ARCHIVE_PARENT="$DOCS_DIR/archived"
 ARCHIVE_BUCKET="$ARCHIVE_PARENT/github_actions_auto"
 REPORT_DIR="$DOCS_DIR/cleanup_reports"
-TOOLS_DIR="$ROOT_DIR/shared/shared_scripts/tools"
+TOOLS_DIR="$ROOT_DIR/shared/scripts/tools"
 
 mkdir -p "$ARCHIVE_BUCKET" "$REPORT_DIR"
 

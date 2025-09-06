@@ -177,7 +177,7 @@ build_service() {
     local dockerfile="Dockerfile"
     if [[ ! -f "$dockerfile" ]]; then
         log_warning "No Dockerfile found, looking for template"
-        dockerfile="../shared/shared_templates/docker/Dockerfile.$service_type"
+        dockerfile="../shared/templates/docker/Dockerfile.$service_type"
         
         if [[ ! -f "$dockerfile" ]]; then
             log_error "No Dockerfile template found for $service_type"

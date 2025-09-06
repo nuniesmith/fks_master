@@ -30,7 +30,7 @@ configuration, logging, exceptions, types, and utilities.
 ## Package Layout
 
 ```text
-shared/shared_python/
+shared/python/
   pyproject.toml
   src/
     __init__.py  # re-exports core helpers
@@ -48,13 +48,13 @@ For Poetry-managed services (pyproject under service root):
 
 ```toml
 [tool.poetry.dependencies]
-shared_python = { path = "../../shared/shared_python", develop = true }
+shared_python = { path = "../../shared/python", develop = true }
 ```
 
 For services with pyproject inside `src/` (e.g. api/training): adjust one more `..`:
 
 ```toml
-shared_python = { path = "../../../shared/shared_python", develop = true }
+shared_python = { path = "../../../shared/python", develop = true }
 ```
 
 For setuptools style:
@@ -62,7 +62,7 @@ For setuptools style:
 ```toml
 [project]
 dependencies = [
-  "shared_python @ file://../../../shared/shared_python"
+  "shared_python @ file://../../../shared/python"
 ]
 ```
 
@@ -85,13 +85,13 @@ poetry install
 Plain pip (editable):
 
 ```bash
-pip install -e ../../shared/shared_python
+pip install -e ../../shared/python
 ```
 
 ## Updating Shared Code
 
-1. Modify or add module in `shared/shared_python/src`.
-2. (Optional) Add / update tests in `shared/shared_python/src/tests`.
+1. Modify or add module in `shared/python/src`.
+2. (Optional) Add / update tests in `shared/python/src/tests`.
 3. Run `pytest` in at least one dependent service.
 4. Commit changes; editable path makes updates immediate.
 
@@ -107,7 +107,7 @@ pip install -e ../../shared/shared_python
   python -c "import shared_python; print(shared_python)"
   ```
 
-- Docker: Ensure Dockerfile `COPY` includes `shared/shared_python/` before install.
+- Docker: Ensure Dockerfile `COPY` includes `shared/python/` before install.
 - Build cache: Path dependency changes may require invalidating cached layers.
 
 ## Future Extensions

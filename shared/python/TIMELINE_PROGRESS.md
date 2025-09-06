@@ -51,6 +51,6 @@ Status codes: ✅ done | 🟡 in progress / partial | ⏳ not started | 🔄 pla
 
 1. Add pre-commit hook across services invoking `scripts/check_no_legacy_imports.py` (enforce canonical imports).
 2. Plan deprecation removal window for `shared_python` alias (announce in 0.3.0, remove >=0.4.0).
-3. Flesh out `centralize_docker.sh` with concrete template copy logic (pull from `shared/shared_docker`).
+3. Flesh out `centralize_docker.sh` with concrete template copy logic (pull from `shared/docker`).
 4. Draft DB schema validation harness (JSON schema + pydantic) for Week 3.
 5. Add optional SHAP / feature importance utilities scaffold (ties to Week 10 objective).

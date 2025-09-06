@@ -6,7 +6,7 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly FKS_ROOT="/home/jordan/oryx/code/repos/fks"
-readonly TEMPLATES_DIR="$FKS_ROOT/shared/shared_templates"
+readonly TEMPLATES_DIR="$FKS_ROOT/shared/templates"
 
 # Color codes
 readonly GREEN='\033[0;32m'
@@ -33,7 +33,7 @@ log_error() {
 
 # Update shared_docker repository
 update_shared_docker() {
-    local repo_dir="$FKS_ROOT/shared/shared_docker"
+    local repo_dir="$FKS_ROOT/shared/docker"
     log "Updating shared_docker repository..."
     
     cd "$repo_dir"
@@ -110,7 +110,7 @@ EOF
 
 # Update shared_python repository
 update_shared_python() {
-    local repo_dir="$FKS_ROOT/shared/shared_python"
+    local repo_dir="$FKS_ROOT/shared/python"
     log "Updating shared_python repository..."
     
     cd "$repo_dir"
@@ -145,7 +145,7 @@ EOF
 
 # Update shared_nginx repository  
 update_shared_nginx() {
-    local repo_dir="$FKS_ROOT/shared/shared_nginx"
+    local repo_dir="$FKS_ROOT/shared/nginx"
     log "Updating shared_nginx repository..."
     
     cd "$repo_dir"
@@ -187,7 +187,7 @@ EOF
 
 # Update shared_rust repository
 update_shared_rust() {
-    local repo_dir="$FKS_ROOT/shared/shared_rust"
+    local repo_dir="$FKS_ROOT/shared/rust"
     log "Updating shared_rust repository..."
     
     cd "$repo_dir"
@@ -228,7 +228,7 @@ EOF
 
 # Update shared_react repository
 update_shared_react() {
-    local repo_dir="$FKS_ROOT/shared/shared_react"
+    local repo_dir="$FKS_ROOT/shared/react"
     log "Updating shared_react repository..."
     
     cd "$repo_dir"
@@ -260,7 +260,7 @@ EOF
 
 # Update shared_schema repository
 update_shared_schema() {
-    local repo_dir="$FKS_ROOT/shared/shared_schema"
+    local repo_dir="$FKS_ROOT/shared/schema"
     log "Updating shared_schema repository..."
     
     cd "$repo_dir"
@@ -278,7 +278,7 @@ update_shared_schema() {
 
 # Update shared_scripts repository
 update_shared_scripts() {
-    local repo_dir="$FKS_ROOT/shared/shared_scripts"
+    local repo_dir="$FKS_ROOT/shared/scripts"
     log "Updating shared_scripts repository..."
     
     cd "$repo_dir"
@@ -305,7 +305,7 @@ for service in "${SERVICES[@]}"; do
         cd "$FKS_ROOT/$service"
         
         # Copy service management script
-        cp "$FKS_ROOT/shared/shared_scripts/templates/fks-service.sh" ./
+        cp "$FKS_ROOT/shared/scripts/templates/fks-service.sh" ./
         
         # Set service-specific environment
         SERVICE_NAME=$(echo "$service" | tr '_' '-')
@@ -322,7 +322,7 @@ EOF
 
 # Update shared_actions repository
 update_shared_actions() {
-    local repo_dir="$FKS_ROOT/shared/shared_actions"
+    local repo_dir="$FKS_ROOT/shared/actions"
     log "Updating shared_actions repository..."
     
     cd "$repo_dir"

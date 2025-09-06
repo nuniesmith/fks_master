@@ -27,13 +27,13 @@ Shared, reusable Python primitives for any FKS service (ingestion, training, inf
 From a service root (example `fks_data/`):
 
 ```bash
-pip install -e ../shared/shared_python
+pip install -e ../shared/python
 ```
 
 Or add as git submodule first:
 
 ```bash
-git submodule add ../../shared/shared_python shared_python  # relative example
+git submodule add ../../shared/python shared_python  # relative example
 pip install -e shared_python
 ```
 

@@ -2,7 +2,7 @@
 # centralize_docker.sh
 #
 # Purpose:
-#   Propagate canonical Docker/compose templates from shared/shared_docker into each service under ./fks/.
+#   Propagate canonical Docker/compose templates from shared/docker into each service under ./fks/.
 #   Creates (or updates) per-service Dockerfile + docker-compose.override.yml with lightweight token substitution.
 #
 # Tokens supported in templates (if present):
@@ -10,9 +10,9 @@
 #   __IMAGE_NAME__    -> lowercased service name (e.g., fks_api)
 #
 # Usage:
-#   ./shared/shared_scripts/docker/centralize_docker.sh [--services "fks_api fks_auth"] [--dry-run] \
-#       [--dockerfile-template shared/shared_docker/Dockerfile] \
-#       [--compose-template shared/shared_docker/compose/docker-compose.template.yml]
+#   ./shared/scripts/docker/centralize_docker.sh [--services "fks_api fks_auth"] [--dry-run] \
+#       [--dockerfile-template shared/docker/Dockerfile] \
+#       [--compose-template shared/docker/compose/docker-compose.template.yml]
 #
 # Behavior:
 #   - Skips services that already have a Dockerfile hash matching the template (idempotent).
@@ -22,8 +22,8 @@
 set -euo pipefail
 
 SERVICES=""
-DOCKERFILE_TEMPLATE="shared/shared_docker/Dockerfile"
-COMPOSE_TEMPLATE="shared/shared_docker/compose/docker-compose.template.yml"
+DOCKERFILE_TEMPLATE="shared/docker/Dockerfile"
+COMPOSE_TEMPLATE="shared/docker/compose/docker-compose.template.yml"
 DRY_RUN=0
 
 info()  { echo -e "[INFO]  $*"; }

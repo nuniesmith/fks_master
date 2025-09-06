@@ -8,12 +8,12 @@
 #     2. submodule          -> adds git submodule pointing to external remote (if provided)
 #
 #   By default we create idempotent symlinks:
-#      <service>/shared_python  -> ../../shared/shared_python/src/shared_python
-#      <service>/fks_shared_python -> ../../shared/shared_python/src/fks_shared_python
+#      <service>/shared_python  -> ../../shared/python/src/shared_python
+#      <service>/fks_shared_python -> ../../shared/python/src/fks_shared_python
 #
 # Usage:
-#   ./shared/shared_scripts/tools/add_shared_submodule.sh [--mode symlink|submodule] [--services "fks_api fks_auth"] \
-#       [--package-path shared/shared_python] [--remote <git_url>] [--dry-run]
+#   ./shared/scripts/tools/add_shared_submodule.sh [--mode symlink|submodule] [--services "fks_api fks_auth"] \
+#       [--package-path shared/python] [--remote <git_url>] [--dry-run]
 #
 # Notes:
 #   - If --mode submodule is selected you must supply --remote (origin of shared repo) unless it already exists.
@@ -24,7 +24,7 @@ set -euo pipefail
 
 MODE="symlink"
 SERVICES=""
-PACKAGE_PATH="shared/shared_python"
+PACKAGE_PATH="shared/python"
 REMOTE=""
 DRY_RUN=0
 

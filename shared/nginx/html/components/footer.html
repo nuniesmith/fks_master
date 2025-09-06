@@ -1,0 +1,38 @@
+<div class="dashboard-footer">
+    <p>
+        <span class="status-indicator"></span>
+        &copy; {{year}} 7Gram Network | 
+        Last updated: <span id="last-updated">{{timestamp}}</span>
+    </p>
+    
+    {{#if showLinks}}
+    <div class="footer-links">
+        {{#each footerLinks}}
+        <a href="{{url}}" {{#if external}}target="_blank" rel="noopener noreferrer"{{/if}}>
+            {{#if icon}}{{icon}} {{/if}}{{text}}
+        </a>
+        {{/each}}
+    </div>
+    {{/if}}
+    
+    {{#if showStats}}
+    <div class="footer-stats">
+        <small>
+            Services: <strong>{{serviceCount}}</strong> | 
+            Categories: <strong>{{categoryCount}}</strong> | 
+            Uptime: <strong id="uptime-display">{{uptime}}</strong>
+        </small>
+    </div>
+    {{/if}}
+    
+    {{#if showVersion}}
+    <div class="version-info">
+        <small>
+            Dashboard v{{version}} | 
+            <a href="{{githubUrl}}" target="_blank" rel="noopener noreferrer">
+                📖 Documentation
+            </a>
+        </small>
+    </div>
+    {{/if}}
+</div>

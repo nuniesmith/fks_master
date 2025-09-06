@@ -1,0 +1,36 @@
+# .dockerignore file
+
+# Python cache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Git repository files
+.git/
+
+# macOS system files
+.DS_Store
+
+# Local environment and virtual environments
+#.env
+*.venv
+*.log
+
+# Pytest cache
+.pytest_cache/
+.git
+.github
+.gitignore
+*.md
+.env*
+node_modules
+tests
+docs
+scripts/*.sh
+!scripts/docker-entrypoint.sh
+!scripts/healthcheck.sh
+backups
+logs
+*.log
+.DS_Store
+Thumbs.db

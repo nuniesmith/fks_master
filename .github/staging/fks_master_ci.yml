@@ -1,0 +1,311 @@
+name: fks_master CI
+
+on:
+  push:
+    paths:
+      - 'fks_master/**'
+      - 'fks_master/.github/workflows/fks_master_ci.yml'
+  pull_request:
+    paths:
+      - 'fks_master/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: fks_master-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+
+jobs:
+  validate-orchestration:
+    name: Validate Orchestration & Config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose
+        run: |
+          if [ -f docker-compose.yml ]; then
+            echo 'Validating docker-compose.yml';
+            docker-compose config --quiet || echo 'Compose validation warnings';
+          fi
+      - name: Validate env template
+        run: |
+          if [ -f .env.template ]; then
+            echo 'Found .env.template (first vars):';
+            grep -E '^[A-Z_]+=' .env.template | head -20 || true;
+          fi
+      - name: Validate scripts
+        run: |
+          if [ -d scripts ]; then
+            find scripts -name '*.sh' -maxdepth 1 -type f -exec chmod +x {} +
+            echo 'Script samples:'
+            find scripts -name '*.sh' -type f | head -10
+          fi
+      - name: Check start/stop
+        run: |
+          [ -f start.sh ] && echo 'start.sh present';
+          [ -f stop.sh ] && echo 'stop.sh present';
+
+  build-test:
+    runs-on: ubuntu-latest
+    needs: validate-orchestration
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable]
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            fks_master/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('fks_master/Cargo.lock') }}
+      - name: fmt check
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: tests
+        run: cargo test --all --all-features
+      - name: Build release
+        run: cargo build --release
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fks_master-binary
+          path: fks_master/target/release/fks_master
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: build-test
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+      - name: Run coverage
+        run: cargo tarpaulin --out Xml --timeout 120 --engine=llvm --all-features || cargo tarpaulin --out Xml --timeout 120 --all-features
+      - name: Upload coverage.xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: fks_master/coverage.xml
+
+  security-audit:
+    runs-on: ubuntu-latest
+    needs: build-test
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: Run cargo audit
+        run: cargo audit --deny warnings --deny unsound --deny yanked || true
+      - name: Upload audit json
+        run: cargo audit --json > audit.json || true
+      - name: Artifact audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-audit-report
+          path: fks_master/audit.json
+      - name: Run cargo-deny (advisories, licenses, bans)
+        run: |
+          cargo deny check advisories licenses bans || true
+      - name: Artifact cargo-deny logs
+        if: always()
+        run: |
+          mkdir -p deny-report
+          cargo deny check advisories > deny-report/advisories.txt || true
+          cargo deny check licenses > deny-report/licenses.txt || true
+          cargo deny check bans > deny-report/bans.txt || true
+        shell: bash
+      - name: Upload cargo-deny artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-deny-report
+          path: fks_master/deny-report
+
+  integration-test:
+    name: Integration Dry-Run
+    runs-on: ubuntu-latest
+    needs: [validate-orchestration, build-test]
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose config validation (extra)
+        run: |
+          if [ -f docker-compose.yml ]; then docker-compose config --services | head -20; fi
+      - name: Network probe
+        run: |
+          docker network create fks-master-ci-net || true
+          docker network rm fks-master-ci-net || true
+
+  docker-multiarch:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    needs: build-test
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login (placeholder)
+        run: echo 'Skipping registry login (configure secrets to enable push)'
+      - name: Multi-arch build (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fks_master
+          file: ./fks_master/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: fks_master:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: SBOM (syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: fks_master:ci
+          format: spdx-json
+          output-file: sbom-fks_master.spdx.json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-fks_master
+          path: fks_master/sbom-fks_master.spdx.json
+      - name: Trivy scan (vuln)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: fks_master:ci
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+      - name: Trivy severity gate (HIGH+)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: fks_master:ci
+          format: 'json'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'HIGH,CRITICAL'
+
+  docker-smoke:
+    name: Image Smoke Test
+    runs-on: ubuntu-latest
+    needs: build-test
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build single-arch (load)
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fks_master
+          file: ./fks_master/Dockerfile
+          push: false
+          load: true
+          tags: fks_master:smoke
+      - name: Run smoke test
+        run: |
+          docker run -d -p 9090:9090 --name fks_master_smoke fks_master:smoke
+          for i in {1..12}; do
+            sleep 5
+            if curl -sf http://localhost:9090/health >/dev/null; then
+              echo 'Health OK';
+              curl -sf http://localhost:9090/metrics | head -50 || true;
+              OK=1; break;
+            fi
+          done
+          if [ "${OK:-}" != 1 ]; then echo 'Health check failed'; docker logs fks_master_smoke || true; exit 1; fi
+          docker stop fks_master_smoke || true
+          docker rm fks_master_smoke || true
+
+  artifact-generation:
+    name: Deployment Artifacts
+    runs-on: ubuntu-latest
+    needs: [integration-test, docker-smoke]
+    defaults:
+      run:
+        working-directory: fks_master
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate deployment artifacts
+        run: |
+          mkdir -p deployment-artifacts
+          cp docker-compose*.yml deployment-artifacts/ 2>/dev/null || true
+            
+          cp .env.template deployment-artifacts/.env.example 2>/dev/null || true
+          cp start.sh stop.sh deployment-artifacts/ 2>/dev/null || true
+          cp -r config deployment-artifacts/config 2>/dev/null || true
+          cp -r scripts deployment-artifacts/scripts 2>/dev/null || true
+          echo '# FKS Master Deployment Package' > deployment-artifacts/README.md
+          echo '' >> deployment-artifacts/README.md
+          echo "Generated: $(date)" >> deployment-artifacts/README.md
+          echo "Commit: $(git rev-parse HEAD)" >> deployment-artifacts/README.md
+          echo '' >> deployment-artifacts/README.md
+          echo '## Quick Start' >> deployment-artifacts/README.md
+          echo 'cp .env.example .env && docker-compose up -d' >> deployment-artifacts/README.md
+          echo '' >> deployment-artifacts/README.md
+          echo '## Primary Service' >> deployment-artifacts/README.md
+          echo '- fks_master (9090) - Orchestration & Monitoring' >> deployment-artifacts/README.md
+          echo '' >> deployment-artifacts/README.md
+          echo '## Management' >> deployment-artifacts/README.md
+          echo '- Start: ./start.sh' >> deployment-artifacts/README.md
+          echo '- Stop: ./stop.sh' >> deployment-artifacts/README.md
+          echo '- Logs: docker-compose logs -f' >> deployment-artifacts/README.md
+          echo '- Status: docker-compose ps' >> deployment-artifacts/README.md
+          ls -la deployment-artifacts
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fks-master-deployment-${{ github.sha }}
+          path: fks_master/deployment-artifacts
+          retention-days: 30
+      - name: Summary
+        run: |
+          echo '## fks_master CI Summary' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '**Commit:** ${{ github.sha }}' >> $GITHUB_STEP_SUMMARY
+          echo '**Branch:** ${{ github.ref_name }}' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo 'Jobs: validation, build/test, coverage, security audit, integration dry-run, multi-arch build, smoke test, artifacts.' >> $GITHUB_STEP_SUMMARY

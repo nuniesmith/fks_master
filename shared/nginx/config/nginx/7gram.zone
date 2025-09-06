@@ -1,0 +1,144 @@
+$TTL 3600
+$ORIGIN 7gram.xyz.
+
+; ============================================================================
+; MAIN DOMAIN RECORDS
+; ============================================================================
+@                           IN    A     100.77.168.19      ; Main domain - tailscale ip for nginx
+www                         IN    A     100.77.168.19      ; WWW alias for main domain
+
+; ============================================================================
+; SERVER INFRASTRUCTURE
+; ============================================================================
+; Physical/Virtual Servers
+nginx                       IN    A     100.77.168.19      ; nginx reverse proxy
+sullivan                    IN    A     100.86.22.59       ; Main media server
+freddy                      IN    A     100.121.199.80     ; Home automation server
+
+; ============================================================================
+; AUTHENTICATION & SECURITY
+; ============================================================================
+auth                        IN    A     100.77.168.19      ; Authelia SSO
+
+; ============================================================================
+; MEDIA SERVICES
+; ============================================================================
+; Media Streaming
+emby                        IN    A     100.77.168.19      ; Emby media server
+jellyfin                    IN    A     100.77.168.19      ; Jellyfin media server
+plex                        IN    A     100.77.168.19      ; Plex media server
+music                       IN    A     100.77.168.19      ; Music streaming service
+youtube                     IN    A     100.77.168.19      ; YouTube-DL interface
+
+; Cloud Storage
+nc                          IN    A     100.77.168.19      ; Nextcloud
+
+; ============================================================================
+; BOOK & DOCUMENT SERVICES
+; ============================================================================
+abs                         IN    A     100.77.168.19      ; AudioBookShelf
+calibre                     IN    A     100.77.168.19      ; Calibre server
+calibreweb                  IN    A     100.77.168.19      ; Calibre Web interface
+
+; ============================================================================
+; HOUSEHOLD MANAGEMENT
+; ============================================================================
+mealie                      IN    A     100.77.168.19      ; Recipe management
+grocy                       IN    A     100.77.168.19      ; Household management
+wiki                        IN    A     100.77.168.19      ; Documentation wiki
+
+; ============================================================================
+; AI & DEVELOPMENT SERVICES
+; ============================================================================
+; AI Services
+ai                          IN    A     100.77.168.19      ; Open WebUI
+chat                        IN    A     100.77.168.19      ; Chat interface (alias for ai)
+ollama                      IN    A     100.77.168.19      ; Ollama LLM backend
+sd                          IN    A     100.77.168.19      ; Stable Diffusion
+comfy                       IN    A     100.77.168.19      ; ComfyUI
+whisper                     IN    A     100.77.168.19      ; Whisper speech-to-text
+
+; Development Tools
+code                        IN    A     100.77.168.19      ; VS Code Server / Code Server
+
+; ============================================================================
+; MEDIA AUTOMATION (*ARR STACK)
+; ============================================================================
+sonarr                      IN    A     100.77.168.19      ; TV show automation
+radarr                      IN    A     100.77.168.19      ; Movie automation
+lidarr                      IN    A     100.77.168.19      ; Music automation
+audiobooks                  IN    A     100.77.168.19      ; Readarr audiobooks
+ebooks                      IN    A     100.77.168.19      ; Readarr ebooks
+jackett                     IN    A     100.77.168.19      ; Indexer proxy
+
+; ============================================================================
+; DOWNLOAD & FILE MANAGEMENT
+; ============================================================================
+qbt                         IN    A     100.77.168.19      ; qBittorrent
+filebot                     IN    A     100.77.168.19      ; File organization
+duplicati                   IN    A     100.77.168.19      ; Backup service
+
+; ============================================================================
+; SYSTEM ADMINISTRATION
+; ============================================================================
+; Home Automation
+home                        IN    A     100.77.168.19      ; Home Assistant
+
+; Network Services  
+pihole                      IN    A     100.77.168.19      ; Pi-hole DNS filtering
+dns                         IN    A     100.77.168.19      ; Pi-hole alias
+
+; ============================================================================
+; MONITORING & OBSERVABILITY
+; ============================================================================
+grafana                     IN    A     100.77.168.19      ; Grafana dashboards
+prometheus                  IN    A     100.77.168.19      ; Prometheus metrics
+uptime                      IN    A     100.77.168.19      ; Uptime monitoring
+watchtower                  IN    A     100.77.168.19      ; Container updates
+
+; ============================================================================
+; CONTAINER MANAGEMENT
+; ============================================================================
+; Portainer Instances
+portainer                   IN    A     100.77.168.19      ; Main Portainer
+portainer-freddy            IN    A     100.77.168.19      ; Freddy Portainer
+portainer-sullivan          IN    A     100.77.168.19      ; Sullivan Portainer
+
+; ============================================================================
+; FILE SYNCHRONIZATION
+; ============================================================================
+; Syncthing Instances
+sync-freddy                 IN    A     100.77.168.19      ; Freddy Syncthing
+sync-sullivan               IN    A     100.77.168.19      ; Sullivan Syncthing
+sync-desktop                IN    A     100.77.168.19      ; Desktop Syncthing
+sync-oryx                   IN    A     100.77.168.19      ; Oryx Syncthing
+
+; ============================================================================
+; ADDITIONAL STANDARD RECORDS
+; ============================================================================
+; Email records (for future use)
+mail                        IN    A     100.77.168.19      ; Mail server
+smtp                        IN    A     100.77.168.19      ; SMTP server
+imap                        IN    A     100.77.168.19      ; IMAP server
+
+; API endpoints
+api                         IN    A     100.77.168.19      ; API gateway
+status                      IN    A     100.77.168.19      ; Status page
+
+; Alternative access methods
+vpn                         IN    A     100.77.168.19      ; VPN access point
+remote                      IN    A     100.77.168.19      ; Remote access
+
+; ============================================================================
+; WILDCARD RECORD (OPTIONAL - Cloudflare specific)
+; ============================================================================
+; Note: Uncomment the next line if you want ALL subdomains to resolve to nginx
+; This allows any subdomain to work without explicit DNS records
+; *                         IN    A     100.77.168.19      ; Wildcard - all subdomains
+
+; TXT RECORDS (for verification and security)
+; ============================================================================
+; @                         IN    TXT   "v=spf1 include:_spf.mx.cloudflare.net ~all"
+; _dmarc                    IN    TXT   "v=DMARC1; p=quarantine; rua=mailto:dmarc@7gram.xyz"
+
+; End of zone file

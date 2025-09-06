@@ -1,0 +1,371 @@
+{
+  "category": "AI Services",
+  "icon": "🤖",
+  "color": "ai",
+  "description": "Artificial Intelligence and machine learning tools for productivity and automation",
+  "priority": 2,
+  "services": [
+    {
+      "id": "openwebui",
+      "name": "Open WebUI",
+      "description": "ChatGPT-like AI interface with multiple model support and advanced features",
+      "url": "https://ai.7gram.xyz",
+      "icon": "🚀",
+      "type": "AI Interface",
+      "version": "0.3.8",
+      "buttonText": "🚀 Open WebUI",
+      "priority": 10,
+      "tags": ["ai", "chat", "llm", "gpt"],
+      "healthCheck": {
+        "url": "https://ai.7gram.xyz/health",
+        "method": "GET",
+        "timeout": 8000,
+        "expectedStatus": [200, 301]
+      },
+      "features": [
+        "Multiple AI Models",
+        "Custom Prompts",
+        "File Upload",
+        "Code Generation",
+        "Image Analysis",
+        "Chat History"
+      ],
+      "supportedModels": [
+        "GPT-4",
+        "GPT-3.5",
+        "Claude",
+        "Llama",
+        "Mistral",
+        "Code Llama"
+      ],
+      "documentation": "https://github.com/open-webui/open-webui",
+      "repository": "https://github.com/open-webui/open-webui",
+      "dockerContainer": "ghcr.io/open-webui/open-webui",
+      "port": 3000
+    },
+    {
+      "id": "chat-interface",
+      "name": "Chat Interface",
+      "description": "Alternative AI chat interface with simplified design and fast responses",
+      "url": "https://chat.7gram.xyz",
+      "icon": "💬",
+      "type": "AI Chat",
+      "version": "2.1.0",
+      "buttonText": "💬 Chat Interface",
+      "priority": 8,
+      "tags": ["ai", "chat", "simple", "fast"],
+      "healthCheck": "https://chat.7gram.xyz/api/health",
+      "features": [
+        "Fast Responses",
+        "Clean Interface",
+        "Keyboard Shortcuts",
+        "Export Conversations",
+        "Custom Themes"
+      ],
+      "documentation": "https://docs.chat-interface.com",
+      "repository": "https://github.com/chat-interface/web",
+      "dockerContainer": "chatinterface/web",
+      "port": 8080
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama API",
+      "description": "Direct access to local AI models via Ollama with REST API interface",
+      "url": "https://ollama.7gram.xyz",
+      "icon": "🧠",
+      "type": "AI API",
+      "version": "0.1.44",
+      "buttonText": "🧠 Ollama API",
+      "priority": 6,
+      "tags": ["ai", "api", "ollama", "local", "models"],
+      "healthCheck": {
+        "url": "https://ollama.7gram.xyz/api/tags",
+        "method": "GET",
+        "timeout": 5000
+      },
+      "features": [
+        "Local AI Models",
+        "REST API",
+        "Model Management",
+        "GPU Acceleration",
+        "Custom Models",
+        "Streaming Responses"
+      ],
+      "availableModels": [
+        "llama3.1:8b",
+        "mistral:7b",
+        "codellama:13b",
+        "phi3:mini",
+        "gemma:7b"
+      ],
+      "documentation": "https://ollama.ai/docs",
+      "repository": "https://github.com/ollama/ollama",
+      "dockerContainer": "ollama/ollama",
+      "port": 11434
+    },
+    {
+      "id": "stable-diffusion",
+      "name": "Stable Diffusion WebUI",
+      "description": "AI image generation with Stable Diffusion models and advanced controls",
+      "url": "https://sd.7gram.xyz",
+      "icon": "🎨",
+      "type": "Image Generation",
+      "version": "1.7.0",
+      "buttonText": "🎨 Generate Images",
+      "priority": 7,
+      "tags": ["ai", "images", "art", "generation", "stable-diffusion"],
+      "healthCheck": "https://sd.7gram.xyz/api/v1/ping",
+      "features": [
+        "Text to Image",
+        "Image to Image",
+        "Inpainting",
+        "ControlNet",
+        "Multiple Models",
+        "Batch Generation"
+      ],
+      "documentation": "https://github.com/AUTOMATIC1111/stable-diffusion-webui",
+      "repository": "https://github.com/AUTOMATIC1111/stable-diffusion-webui",
+      "dockerContainer": "stability-ai/stable-diffusion-webui",
+      "port": 7860
+    },
+    {
+      "id": "comfyui",
+      "name": "ComfyUI",
+      "description": "Node-based interface for Stable Diffusion with advanced workflow capabilities",
+      "url": "https://comfy.7gram.xyz",
+      "icon": "🔗",
+      "type": "Workflow Designer",
+      "version": "0.0.2",
+      "buttonText": "🔗 ComfyUI",
+      "priority": 5,
+      "tags": ["ai", "workflow", "nodes", "advanced", "generation"],
+      "healthCheck": "https://comfy.7gram.xyz/system_stats",
+      "features": [
+        "Node-based Workflow",
+        "Advanced Controls",
+        "Custom Nodes",
+        "Batch Processing",
+        "API Integration"
+      ],
+      "documentation": "https://github.com/comfyanonymous/ComfyUI",
+      "repository": "https://github.com/comfyanonymous/ComfyUI",
+      "dockerContainer": "comfyui/comfyui",
+      "port": 8188
+    },
+    {
+      "id": "whisper",
+      "name": "Whisper ASR",
+      "description": "Automatic speech recognition service powered by OpenAI Whisper",
+      "url": "https://whisper.7gram.xyz",
+      "icon": "🎤",
+      "type": "Speech Recognition",
+      "version": "20231117",
+      "buttonText": "🎤 Speech to Text",
+      "priority": 4,
+      "tags": ["ai", "speech", "transcription", "whisper", "audio"],
+      "healthCheck": "https://whisper.7gram.xyz/health",
+      "features": [
+        "Multiple Languages",
+        "High Accuracy",
+        "Real-time Processing",
+        "File Upload",
+        "API Access"
+      ],
+      "supportedFormats": [
+        "mp3", "wav", "m4a", "ogg", "flac"
+      ],
+      "documentation": "https://github.com/openai/whisper",
+      "repository": "https://github.com/ahmetoner/whisper-asr-webservice",
+      "dockerContainer": "onerahmet/openai-whisper-asr-webservice",
+      "port": 9000
+    },
+    {
+      "id": "codeassist",
+      "name": "Code Assistant",
+      "description": "AI-powered code completion and generation service with multiple language support",
+      "url": "https://code.7gram.xyz",
+      "icon": "⌨️",
+      "type": "Code Assistant",
+      "version": "1.5.2",
+      "buttonText": "⌨️ Code Assistant",
+      "priority": 3,
+      "tags": ["ai", "code", "programming", "assistant", "completion"],
+      "healthCheck": "https://code.7gram.xyz/api/status",
+      "features": [
+        "Code Completion",
+        "Code Generation",
+        "Bug Detection",
+        "Code Explanation",
+        "Multiple Languages",
+        "IDE Integration"
+      ],
+      "supportedLanguages": [
+        "Python", "JavaScript", "TypeScript", "Java", "Go", "C++", "Rust", "PHP"
+      ],
+      "documentation": "https://docs.codeassist.ai",
+      "repository": "https://github.com/codeassist/server",
+      "dockerContainer": "codeassist/server",
+      "port": 5000
+    }
+  ],
+  "integrations": {
+    "api": {
+      "enabled": true,
+      "endpoints": [
+        {
+          "service": "ollama",
+          "endpoint": "/api/generate",
+          "method": "POST"
+        },
+        {
+          "service": "whisper", 
+          "endpoint": "/asr",
+          "method": "POST"
+        }
+      ]
+    },
+    "workflows": {
+      "textToImage": {
+        "steps": ["stable-diffusion", "comfyui"],
+        "description": "Generate images from text prompts"
+      },
+      "audioTranscription": {
+        "steps": ["whisper"],
+        "description": "Convert audio to text"
+      },
+      "codeGeneration": {
+        "steps": ["openwebui", "codeassist"],
+        "description": "Generate and improve code"
+      }
+    }
+  },
+  "requirements": {
+    "hardware": {
+      "gpu": {
+        "recommended": "NVIDIA RTX 4090",
+        "minimum": "NVIDIA GTX 1060 6GB",
+        "memory": "8GB VRAM minimum, 24GB recommended"
+      },
+      "ram": "16GB minimum, 32GB recommended",
+      "storage": "100GB for models and cache"
+    },
+    "software": {
+      "docker": "20.10+",
+      "nvidia-docker": "Required for GPU acceleration",
+      "python": "3.8+ (for development)"
+    }
+  },
+  "models": {
+    "downloadLocation": "/opt/ai-models",
+    "autoDownload": false,
+    "popularModels": [
+      {
+        "name": "Llama 3.1 8B",
+        "size": "4.7GB",
+        "type": "Text Generation",
+        "compatibility": ["ollama", "openwebui"]
+      },
+      {
+        "name": "Stable Diffusion XL",
+        "size": "6.9GB", 
+        "type": "Image Generation",
+        "compatibility": ["stable-diffusion", "comfyui"]
+      },
+      {
+        "name": "Whisper Large V3",
+        "size": "1.5GB",
+        "type": "Speech Recognition", 
+        "compatibility": ["whisper"]
+      }
+    ]
+  },
+  "security": {
+    "apiKeys": {
+      "required": true,
+      "storage": "environment_variables",
+      "rotation": "monthly"
+    },
+    "rateLimiting": {
+      "enabled": true,
+      "requestsPerMinute": 60,
+      "requestsPerHour": 1000
+    },
+    "accessControl": {
+      "ipWhitelist": true,
+      "userAuthentication": "optional"
+    }
+  },
+  "monitoring": {
+    "metrics": [
+      "requests_per_second",
+      "response_time",
+      "gpu_utilization", 
+      "memory_usage",
+      "model_loading_time"
+    ],
+    "alerts": [
+      {
+        "condition": "gpu_memory > 90%",
+        "action": "notification"
+      },
+      {
+        "condition": "response_time > 30s",
+        "action": "restart_service"
+      }
+    ]
+  },
+  "troubleshooting": {
+    "commonIssues": [
+      {
+        "issue": "GPU out of memory",
+        "solutions": [
+          "Reduce batch size",
+          "Use smaller models",
+          "Clear GPU cache",
+          "Restart services"
+        ]
+      },
+      {
+        "issue": "Model loading fails",
+        "solutions": [
+          "Check disk space",
+          "Verify model file integrity",
+          "Check network connectivity",
+          "Review Docker logs"
+        ]
+      },
+      {
+        "issue": "Slow inference",
+        "solutions": [
+          "Enable GPU acceleration",
+          "Optimize model parameters",
+          "Check system resources",
+          "Use quantized models"
+        ]
+      }
+    ],
+    "logs": {
+      "ollama": "/var/log/ollama/",
+      "stable-diffusion": "/var/log/sd-webui/",
+      "whisper": "/var/log/whisper/"
+    }
+  },
+  "backups": {
+    "critical": [
+      "Model configurations",
+      "Custom prompts",
+      "User settings",
+      "API keys"
+    ],
+    "optional": [
+      "Chat history",
+      "Generated images",
+      "Audio transcriptions"
+    ],
+    "exclude": [
+      "Model files (too large)",
+      "Temporary cache",
+      "Log files"
+    ]
+  }
+}

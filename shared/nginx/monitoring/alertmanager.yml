@@ -1,0 +1,84 @@
+# monitoring/alertmanager.yml - Alertmanager configuration
+global:
+  resolve_timeout: 5m
+  
+  # Discord webhook configuration
+  discord_webhook_url: '${DISCORD_WEBHOOK_URL}'
+  
+  # Slack webhook configuration  
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts
+    - match:
+        severity: critical
+      receiver: 'critical'
+      continue: true
+      
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning'
+      group_wait: 30s
+      
+    # Info alerts
+    - match:
+        severity: info
+      receiver: 'info'
+      group_interval: 5m
+
+# Receivers
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://localhost:9094/webhook'
+        send_resolved: true
+
+  - name: 'critical'
+    discord_webhook_configs:
+      - webhook_url: '${DISCORD_WEBHOOK_URL}'
+        title: '🚨 Critical Alert'
+        message: |
+          **Alert:** {{ .GroupLabels.alertname }}
+          **Service:** {{ .GroupLabels.service }}
+          **Summary:** {{ .Annotations.summary }}
+          **Description:** {{ .Annotations.description }}
+    
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        title: '🚨 Critical Alert'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+
+  - name: 'warning'
+    discord_webhook_configs:
+      - webhook_url: '${DISCORD_WEBHOOK_URL}'
+        title: '⚠️ Warning Alert'
+        message: |
+          **Alert:** {{ .GroupLabels.alertname }}
+          **Summary:** {{ .Annotations.summary }}
+
+  - name: 'info'
+    webhook_configs:
+      - url: 'http://localhost:9094/webhook/info'
+        send_resolved: false
+
+# Inhibition rules
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

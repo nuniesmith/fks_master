@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>404 - Page Not Found | 7Gram Network</title>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #ff6b6b;
+            --warning-color: #ffc107;
+            --background-color: #f8f9fa;
+            --card-color: #ffffff;
+            --text-color: #212529;
+            --border-radius: 16px;
+            --box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Skip link styles */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: white;
+            color: black;
+            padding: 8px;
+            z-index: 100;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .skip-link:focus {
+            top: 6px;
+        }
+
+        /* Animated background elements */
+        .bg-element {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .bg-element:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .bg-element:nth-child(2) {
+            width: 120px;
+            height: 120px;
+            top: 20%;
+            right: 10%;
+            animation-delay: 2s;
+        }
+
+        .bg-element:nth-child(3) {
+            width: 60px;
+            height: 60px;
+            bottom: 20%;
+            left: 20%;
+            animation-delay: 4s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 50px 40px;
+            position: relative;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-color), var(--warning-color));
+        }
+
+        .error-illustration {
+            font-size: 8rem;
+            margin-bottom: 20px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            margin: 20px 0;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--accent-color), var(--warning-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .error-code::after {
+            content: '404';
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: rgba(0, 0, 0, 0.1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            z-index: -1;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 30px 0 20px 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .subtitle {
+            color: var(--secondary-color);
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+
+        .description {
+            color: #6c757d;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .suggestions {
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            margin: 30px 0;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .suggestions h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .suggestions ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .suggestions li {
+            color: #6c757d;
+            margin: 10px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .suggestions li::before {
+            content: '💡';
+            position: absolute;
+            left: 0;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 40px 0;
+        }
+
+        .btn {
+            display: inline-block;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.9);
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .current-url {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            color: var(--accent-color);
+            word-break: break-all;
+        }
+
+        /* Server status indicator */
+        #server-status {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin: 20px 0;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        footer {
+            margin-top: 40px;
+            color: #6c757d;
+            font-size: 0.95rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            padding-top: 20px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--secondary-color);
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .container {
+                padding: 40px 25px;
+                margin: 10px;
+            }
+            
+            .error-code {
+                font-size: 6rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .footer-links {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .error-illustration {
+                font-size: 6rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .error-code {
+                font-size: 4rem;
+            }
+            
+            .error-illustration {
+                font-size: 4rem;
+            }
+        }
+
+        /* Accessibility improvements */
+        @media (prefers-reduced-motion: reduce) {
+            .error-illustration,
+            .bg-element {
+                animation: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Accessibility: Skip to main content -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Animated background elements -->
+    <div class="bg-element"></div>
+    <div class="bg-element"></div>
+    <div class="bg-element"></div>
+
+    <div class="container" id="main-content">
+        <div class="error-illustration">🤖</div>
+        <div class="error-code">404</div>
+        <h1>Oops! Page Not Found</h1>
+        <p class="subtitle">The digital bees couldn't find this honeycomb!</p>
+        <p class="description">
+            The page you're looking for seems to have wandered off into the digital wilderness. 
+            Don't worry, even the best navigation systems occasionally take a wrong turn!
+        </p>
+
+        <div class="current-url">
+            <strong>Requested URL:</strong> <span id="current-url"></span>
+        </div>
+
+        <!-- Server Status Display -->
+        <div id="server-status">
+            <strong>Server Status:</strong> Checking connection...
+        </div>
+
+        <div class="suggestions">
+            <h3>🔍 Here's what you can try:</h3>
+            <ul>
+                <li>Check the URL for any typos or missing characters</li>
+                <li>Use the search function on our main dashboard</li>
+                <li>Navigate back to the home page and try again</li>
+                <li>Contact us if you believe this is an error</li>
+            </ul>
+        </div>
+
+        <div class="button-group">
+            <a href="/" class="btn btn-primary">🏠 Back to Dashboard</a>
+            <a href="javascript:history.back()" class="btn btn-secondary">← Go Back</a>
+        </div>
+
+        <footer>
+            <p>🍯 7Gram Network - Where digital sweetness meets functionality</p>
+            <div class="footer-links">
+                <a href="/">Home</a>
+                <a href="/health">System Status</a>
+                <a href="mailto:admin@7gram.xyz">Contact Support</a>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Enhanced error reporting for nginx debugging
+        function reportError() {
+            const errorDetails = {
+                url: window.location.href,
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString(),
+                referrer: document.referrer,
+                errorType: '404',
+                viewport: `${window.innerWidth}x${window.innerHeight}`,
+                connection: navigator.connection?.effectiveType || 'unknown'
+            };
+            
+            console.error('7Gram Error Report:', errorDetails);
+            
+            // Try to ping the health endpoint with timeout
+            const healthCheck = fetch('/health', { 
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(5000)
+            });
+            
+            healthCheck
+                .then(response => {
+                    console.log('Health check status:', response.status);
+                    if (response.ok) {
+                        console.log('✅ Main server is healthy - this might be a specific service issue');
+                        updateErrorMessage('✅ Server is running but this specific resource is unavailable');
+                    } else {
+                        console.log('⚠️ Server responding but with issues');
+                        updateErrorMessage('⚠️ Server is experiencing issues');
+                    }
+                })
+                .catch(error => {
+                    console.log('❌ Cannot reach health endpoint:', error.message);
+                    updateErrorMessage('❌ Server appears to be down or unreachable');
+                });
+        }
+
+        function updateErrorMessage(status) {
+            const statusEl = document.getElementById('server-status');
+            if (statusEl) {
+                statusEl.innerHTML = `<strong>Server Status:</strong> ${status}`;
+            }
+        }
+
+        /* Display the current URL that caused the 404 */
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('current-url').textContent = window.location.href;
+            
+            // Run error report after page loads
+            setTimeout(reportError, 500);
+        });
+
+        /* Add some interactive behavior */
+        document.addEventListener('mousemove', function(e) {
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                return; // Skip animations for users who prefer reduced motion
+            }
+            
+            const elements = document.querySelectorAll('.bg-element');
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+
+            elements.forEach((element, index) => {
+                const speed = (index + 1) * 0.5;
+                const xPos = (x - 0.5) * speed * 20;
+                const yPos = (y - 0.5) * speed * 20;
+                
+                element.style.transform = `translate(${xPos}px, ${yPos}px)`;
+            });
+        });
+
+        // Keyboard accessibility
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                // Could close any open dialogs here
+            }
+        });
+
+        /* Console easter egg */
+        console.log('🤖 404 Error detected! But hey, you found the console - that\'s something! 🍯');
+        console.log('🔍 Debug info: Page not found at ' + window.location.href);
+        console.log('💡 Tip: Try navigating back to https://7gram.xyz');
+    </script>
+</body>
+</html>

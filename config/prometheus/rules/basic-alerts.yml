@@ -1,0 +1,21 @@
+groups:
+  - name: basic-service-health
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} down"
+          description: "The service instance {{ $labels.instance }} (job {{ $labels.job }}) is not reporting up=1."
+
+      - alert: HighAPILatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="python-services"}[5m])) by (le)) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API p95 latency"
+          description: "p95 request latency > 800ms for 5m."

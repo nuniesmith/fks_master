@@ -1,0 +1,569 @@
+# config/nginx/conf.d/default.conf
+# ================================================
+# NGINX CONFIGURATION FOR 7GRAM NETWORK
+# Version: 2.0.1 - Fixed HTTP/2 and SSL paths
+# ================================================
+
+# Include maps configuration
+include /etc/nginx/conf.d/maps.conf;
+
+# ================================================
+# DEFAULT HTTP REDIRECT TO HTTPS
+# ================================================
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _;
+    
+    # ACME challenge for Let's Encrypt
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    
+    # Redirect all other HTTP traffic to HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ================================================
+# MAIN DASHBOARD - 7GRAM.XYZ (HTTPS)
+# ================================================
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name 7gram.xyz;
+
+    # SSL configuration
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+
+    # Apply enhanced configuration
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    # Health endpoint
+    location = /health {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        add_header Content-Type "application/json; charset=utf-8" always;
+        return 200 '{"service": "dashboard", "status": "healthy", "timestamp": "$time_iso8601"}';
+    }
+    
+    # Static assets with aggressive caching
+    location ~* ^/(assets/|js/|css/) {
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        include /etc/nginx/conf.d/cors-universal.inc;
+        access_log off;
+        try_files $uri $uri/ =404;
+    }
+    
+    # Configuration files
+    location ~* ^/(config/|services\.json|dashboard\.json) {
+        expires 1m;
+        add_header Cache-Control "public, max-age=60" always;
+        include /etc/nginx/conf.d/cors-universal.inc;
+        try_files $uri $uri/ =404;
+    }
+    
+    # Main dashboard page
+    location / {
+        expires 5m;
+        add_header Cache-Control "public, max-age=300" always;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Error pages
+    error_page 404 /errors/404.html;
+    error_page 500 502 503 504 /errors/50x.html;
+    
+    location ^~ /errors/ {
+        internal;
+        root /usr/share/nginx/html;
+    }
+}
+
+# ================================================
+# MEDIA SERVICES - SULLIVAN.TAILFEF10.TS.NET
+# ================================================
+
+# Emby Media Server
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name emby.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-media.inc;
+        include /etc/nginx/includes/media_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8096;
+    }
+}
+
+# Jellyfin Media Server
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name jellyfin.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-media.inc;
+        include /etc/nginx/includes/media_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8097;
+    }
+}
+
+# Plex Media Server
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name plex.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-media.inc;
+        include /etc/nginx/includes/media_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:32400;
+    }
+}
+
+# Audiobookshelf
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name abs.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-media.inc;
+        include /etc/nginx/includes/media_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:13378;
+    }
+}
+
+# Calibre Web
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name calibreweb.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-media.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8083;
+    }
+}
+
+# Navidrome Music Server
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name music.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-media.inc;
+        include /etc/nginx/includes/media_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:4533;
+    }
+}
+
+# YouTube Downloader
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name youtube.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:17442;
+    }
+}
+
+# ================================================
+# AI SERVICES - SULLIVAN.TAILFEF10.TS.NET
+# ================================================
+
+# Open WebUI / AI Chat
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ai.7gram.xyz chat.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/websocket_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:3000;
+    }
+}
+
+# Ollama API
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ollama.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        client_max_body_size 10G;
+        proxy_pass http://sullivan.tailfef10.ts.net:11434;
+    }
+}
+
+# Stable Diffusion WebUI
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name sd.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        client_max_body_size 100M;
+        proxy_pass http://sullivan.tailfef10.ts.net:7860;
+    }
+}
+
+# ComfyUI
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name comfy.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/websocket_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8188;
+    }
+}
+
+# Whisper ASR
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name whisper.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:9000;
+    }
+}
+
+# Code Assistant
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name code.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-universal.inc;
+        include /etc/nginx/includes/websocket_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8443;
+    }
+}
+
+# ================================================
+# MEDIA MANAGEMENT SERVICES
+# ================================================
+
+# Sonarr (TV Series Management)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name sonarr.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8989;
+    }
+}
+
+# Radarr (Movie Management)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name radarr.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:7878;
+    }
+}
+
+# Lidarr (Music Management)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name lidarr.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8686;
+    }
+}
+
+# qBittorrent
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name qbt.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header Referer "";
+        proxy_pass http://sullivan.tailfef10.ts.net:8080;
+    }
+}
+
+# ================================================
+# SYSTEM SERVICES
+# ================================================
+
+# Home Assistant
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name home.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/websocket_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:8123;
+    }
+}
+
+# Pi-hole
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name pihole.7gram.xyz dns.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:80;
+    }
+}
+
+# Grafana
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name grafana.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/websocket_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:3001;
+    }
+}
+
+# Portainer
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name portainer.7gram.xyz;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    include /etc/nginx/includes/security_headers.conf;
+    include /etc/nginx/includes/caching.conf;
+    include /etc/nginx/includes/rate_limiting.conf;
+    
+    location / {
+        include /etc/nginx/conf.d/cors-admin.inc;
+        include /etc/nginx/includes/websocket_proxy_params.conf;
+        proxy_pass http://sullivan.tailfef10.ts.net:9000;
+    }
+}
+
+# ================================================
+# CATCH-ALL FOR UNDEFINED SUBDOMAINS
+# ================================================
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    http2 on;
+    server_name _;
+    
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    include /etc/nginx/includes/ssl_params.conf;
+    
+    # Return 404 for undefined subdomains
+    return 404 '{"error":"Service not found","timestamp":"$time_iso8601"}';
+    add_header Content-Type "application/json; charset=utf-8" always;
+}

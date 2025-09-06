@@ -1,0 +1,338 @@
+{
+  "version": "1.2.0",
+  "lastUpdated": "2025-01-30T00:00:00Z",
+  "metadata": {
+    "description": "7Gram Dashboard Theme Configuration",
+    "author": "nuniesmith",
+    "license": "MIT"
+  },
+  "defaultTheme": "default",
+  "allowCustomThemes": true,
+  "themeSettings": {
+    "enableAutoDetection": true,
+    "respectSystemPreference": true,
+    "enableTransitions": true,
+    "transitionDuration": 300,
+    "enableThemeToggle": true,
+    "showThemeSelector": true,
+    "preloadThemes": true,
+    "cacheThemes": true
+  },
+  "themes": [
+    {
+      "id": "default",
+      "name": "Default Blue",
+      "description": "Classic 7gram theme with blue gradients and glassmorphism effects",
+      "author": "nuniesmith",
+      "version": "1.2.0",
+      "cssFile": "assets/css/themes/default.css",
+      "preview": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      "thumbnailUrl": "/assets/images/themes/default-preview.png",
+      "isDark": false,
+      "isBuiltIn": true,
+      "isDefault": true,
+      "features": [
+        "glassmorphism",
+        "gradients",
+        "animations",
+        "blur-effects",
+        "smooth-transitions"
+      ],
+      "colors": {
+        "primary": "#667eea",
+        "secondary": "#764ba2",
+        "accent": "#ff006e",
+        "success": "#28a745",
+        "warning": "#ffc107",
+        "danger": "#dc3545",
+        "info": "#17a2b8",
+        "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        "backgroundCard": "rgba(255, 255, 255, 0.95)",
+        "text": "#212529",
+        "textSecondary": "#6c757d",
+        "textLight": "#ffffff"
+      },
+      "accessibility": {
+        "contrastRatio": "AAA",
+        "supportsHighContrast": true,
+        "supportsReducedMotion": true,
+        "wcagCompliant": true,
+        "colorBlindFriendly": true
+      },
+      "performance": {
+        "useGPUAcceleration": true,
+        "optimizedForMobile": true,
+        "minified": true,
+        "fileSize": "45KB"
+      }
+    },
+    {
+      "id": "dark",
+      "name": "Dark Mode",
+      "description": "Sleek dark theme optimized for low-light environments with enhanced contrast",
+      "author": "nuniesmith",
+      "version": "1.2.0",
+      "cssFile": "assets/css/themes/dark.css",
+      "preview": "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+      "thumbnailUrl": "/assets/images/themes/dark-preview.png",
+      "isDark": true,
+      "isBuiltIn": true,
+      "features": [
+        "dark-mode",
+        "enhanced-contrast",
+        "glowing-effects",
+        "backdrop-filters",
+        "neon-accents"
+      ],
+      "colors": {
+        "primary": "#7c93f0",
+        "secondary": "#8b6bc7",
+        "accent": "#ff4081",
+        "success": "#4caf50",
+        "warning": "#ff9800",
+        "danger": "#f44336",
+        "info": "#2196f3",
+        "background": "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+        "backgroundCard": "rgba(26, 26, 46, 0.95)",
+        "text": "#f8fafc",
+        "textSecondary": "#cbd5e1",
+        "textLight": "#ffffff"
+      },
+      "accessibility": {
+        "contrastRatio": "AAA",
+        "supportsHighContrast": true,
+        "supportsReducedMotion": true,
+        "optimizedForDarkMode": true,
+        "reducesEyeStrain": true,
+        "wcagCompliant": true
+      },
+      "performance": {
+        "useGPUAcceleration": true,
+        "optimizedForMobile": true,
+        "minified": true,
+        "fileSize": "52KB"
+      }
+    },
+    {
+      "id": "compact",
+      "name": "Compact Layout",
+      "description": "Space-efficient theme designed for smaller screens and high service density",
+      "author": "nuniesmith",
+      "version": "1.2.0",
+      "cssFile": "assets/css/themes/compact.css",
+      "preview": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      "thumbnailUrl": "/assets/images/themes/compact-preview.png",
+      "isDark": false,
+      "isBuiltIn": true,
+      "features": [
+        "compact-layout",
+        "dense-grid",
+        "minimal-padding",
+        "smaller-text",
+        "space-efficient"
+      ],
+      "colors": {
+        "primary": "#667eea",
+        "secondary": "#764ba2",
+        "accent": "#ff006e",
+        "success": "#28a745",
+        "warning": "#ffc107",
+        "danger": "#dc3545",
+        "info": "#17a2b8",
+        "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        "backgroundCard": "rgba(255, 255, 255, 0.95)",
+        "text": "#212529",
+        "textSecondary": "#6c757d",
+        "textLight": "#ffffff"
+      },
+      "layout": {
+        "cardMinWidth": "280px",
+        "cardPadding": "16px",
+        "fontSize": "14px",
+        "spacing": "12px",
+        "gridGap": "16px",
+        "headerPadding": "24px"
+      },
+      "accessibility": {
+        "contrastRatio": "AA",
+        "supportsHighContrast": true,
+        "supportsReducedMotion": true,
+        "mobileOptimized": true,
+        "touchFriendly": true
+      },
+      "performance": {
+        "useGPUAcceleration": false,
+        "optimizedForMobile": true,
+        "minified": true,
+        "fileSize": "38KB"
+      }
+    },
+    {
+      "id": "high-contrast",
+      "name": "High Contrast",
+      "description": "Maximum contrast theme for accessibility and visual clarity",
+      "author": "nuniesmith",
+      "version": "1.2.0",
+      "cssFile": "assets/css/themes/high-contrast.css",
+      "preview": "linear-gradient(135deg, #000000 0%, #ffffff 100%)",
+      "thumbnailUrl": "/assets/images/themes/high-contrast-preview.png",
+      "isDark": false,
+      "isBuiltIn": true,
+      "features": [
+        "high-contrast",
+        "accessibility-focused",
+        "bold-borders",
+        "clear-separators",
+        "screen-reader-optimized"
+      ],
+      "colors": {
+        "primary": "#0000ff",
+        "secondary": "#800080",
+        "accent": "#ff0000",
+        "success": "#008000",
+        "warning": "#ff8c00",
+        "danger": "#ff0000",
+        "info": "#0000ff",
+        "background": "#ffffff",
+        "backgroundCard": "#ffffff",
+        "text": "#000000",
+        "textSecondary": "#333333",
+        "textLight": "#ffffff"
+      },
+      "accessibility": {
+        "contrastRatio": "AAA+",
+        "supportsHighContrast": true,
+        "supportsReducedMotion": true,
+        "wcagCompliant": true,
+        "optimizedForScreenReaders": true,
+        "colorBlindFriendly": true,
+        "lowVisionOptimized": true
+      },
+      "performance": {
+        "useGPUAcceleration": false,
+        "optimizedForMobile": true,
+        "minified": true,
+        "fileSize": "41KB"
+      }
+    }
+  ],
+  "customization": {
+    "allowUserThemes": false,
+    "maxCustomThemes": 5,
+    "supportedFeatures": [
+      "custom-colors",
+      "custom-fonts",
+      "custom-spacing",
+      "custom-borders",
+      "custom-shadows"
+    ],
+    "restrictions": {
+      "requireAccessibilityCompliance": true,
+      "minimumContrastRatio": 4.5,
+      "maxFileSize": "100KB",
+      "allowedProperties": [
+        "color",
+        "background-color",
+        "border-color",
+        "box-shadow",
+        "font-family",
+        "font-size",
+        "padding",
+        "margin"
+      ]
+    },
+    "validation": {
+      "enabled": true,
+      "checkContrast": true,
+      "checkPerformance": true,
+      "requireFallbacks": true
+    }
+  },
+  "integration": {
+    "systemThemeDetection": true,
+    "autoSwitchBasedOnTime": false,
+    "timeBasedSwitching": {
+      "enabled": false,
+      "lightThemeStart": "07:00",
+      "darkThemeStart": "19:00",
+      "timezone": "auto"
+    },
+    "syncWithOS": true,
+    "storageMethod": "localStorage",
+    "fallbackTheme": "default",
+    "cookieSupport": true,
+    "urlParameterSupport": true
+  },
+  "performance": {
+    "lazyLoadThemes": true,
+    "cacheThemes": true,
+    "preloadDefaultTheme": true,
+    "optimizeForMobile": true,
+    "enableServiceWorkerCaching": true,
+    "compressThemes": true,
+    "criticalCSSInline": false
+  },
+  "api": {
+    "endpoints": {
+      "getThemes": "/api/themes",
+      "getCurrentTheme": "/api/themes/current",
+      "setTheme": "/api/themes/set",
+      "validateTheme": "/api/themes/validate",
+      "getThemePreview": "/api/themes/preview"
+    },
+    "webhooks": {
+      "themeChanged": "/webhooks/theme-changed",
+      "themeValidated": "/webhooks/theme-validated"
+    },
+    "rateLimit": {
+      "enabled": true,
+      "requestsPerMinute": 30
+    }
+  },
+  "debugging": {
+    "enabled": false,
+    "logThemeLoading": false,
+    "logThemeChanges": true,
+    "logPerformanceMetrics": false,
+    "validateOnLoad": true
+  },
+  "features": {
+    "themeToggleButton": {
+      "enabled": true,
+      "position": "top-right",
+      "showLabels": false,
+      "useIcons": true
+    },
+    "themeSelector": {
+      "enabled": true,
+      "showPreviews": true,
+      "showDescriptions": true,
+      "groupByType": false
+    },
+    "themeTransitions": {
+      "enabled": true,
+      "duration": 300,
+      "easing": "ease-in-out",
+      "properties": ["background-color", "color", "border-color"]
+    }
+  },
+  "documentation": {
+    "themeCreationGuide": "/docs/theme-creation",
+    "colorPalettes": "/docs/color-palettes",
+    "accessibilityGuidelines": "/docs/accessibility",
+    "examples": "/docs/theme-examples",
+    "changelog": "/docs/theme-changelog"
+  },
+  "support": {
+    "browserCompatibility": {
+      "chrome": ">=80",
+      "firefox": ">=75",
+      "safari": ">=13",
+      "edge": ">=80"
+    },
+    "mobileSupport": true,
+    "tabletSupport": true,
+    "desktopSupport": true,
+    "printStylesIncluded": true
+  }
+}

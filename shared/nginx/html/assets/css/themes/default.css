@@ -1,0 +1,477 @@
+/* assets/css/themes/default.css - Default 7gram Theme */
+
+/* Theme: Default Blue Gradient */
+:root.theme-default,
+:root {
+    /* Primary Brand Colors */
+    --primary-color: #667eea;
+    --secondary-color: #764ba2;
+    --accent-color: #ff006e;
+    
+    /* Status Colors */
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+    
+    /* Neutral Colors */
+    --dark-color: #343a40;
+    --light-color: #f8f9fa;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-400: #ced4da;
+    --gray-500: #adb5bd;
+    --gray-600: #6c757d;
+    --gray-700: #495057;
+    --gray-800: #343a40;
+    --gray-900: #212529;
+    
+    /* Background Colors */
+    --background-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    --background-card: rgba(255, 255, 255, 0.95);
+    --background-overlay: rgba(255, 255, 255, 0.1);
+    --background-muted: var(--gray-100);
+    --background-body: var(--light-color);
+    
+    /* Text Colors */
+    --text-primary: var(--gray-900);
+    --text-secondary: var(--gray-600);
+    --text-muted: var(--gray-500);
+    --text-light: #ffffff;
+    --text-dark: var(--gray-900);
+    
+    /* Border Colors */
+    --border-color: var(--gray-300);
+    --border-light: rgba(255, 255, 255, 0.2);
+    --border-focus: var(--primary-color);
+    
+    /* Shadow Colors */
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --shadow-color-dark: rgba(0, 0, 0, 0.2);
+    --shadow-color-light: rgba(0, 0, 0, 0.05);
+    
+    /* Component-Specific Colors */
+    --header-background: var(--background-card);
+    --footer-background: var(--background-card);
+    --card-background: var(--background-card);
+    --card-border: var(--border-light);
+    
+    /* Category Colors */
+    --category-media-start: var(--primary-color);
+    --category-media-end: var(--secondary-color);
+    
+    --category-ai-start: #00d9ff;
+    --category-ai-end: #0099cc;
+    
+    --category-admin-start: #ff6b6b;
+    --category-admin-end: #ee5a52;
+    
+    --category-system-start: #ffa726;
+    --category-system-end: #ff8a65;
+    
+    --category-games-start: #9c27b0;
+    --category-games-end: #673ab7;
+    
+    /* Interactive States */
+    --hover-overlay: rgba(255, 255, 255, 0.1);
+    --active-overlay: rgba(255, 255, 255, 0.2);
+    --focus-ring: rgba(102, 126, 234, 0.2);
+    
+    /* Backdrop Filters */
+    --backdrop-blur: blur(10px);
+    --backdrop-saturate: saturate(180%);
+}
+
+/* Body and Base Styles */
+body.theme-default {
+    background: var(--background-primary);
+    color: var(--text-primary);
+}
+
+/* Header Styling */
+.theme-default .dashboard-header {
+    background: var(--header-background);
+    backdrop-filter: var(--backdrop-blur) var(--backdrop-saturate);
+    border: 1px solid var(--border-light);
+}
+
+.theme-default .dashboard-header h1 {
+    color: var(--primary-color);
+}
+
+.theme-default .dashboard-header .subtitle {
+    color: var(--secondary-color);
+}
+
+/* Search Component */
+.theme-default .search-input {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--border-light);
+    color: var(--text-primary);
+    backdrop-filter: var(--backdrop-blur);
+}
+
+.theme-default .search-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px var(--focus-ring);
+    background: white;
+}
+
+.theme-default .search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.theme-default .search-suggestions {
+    background: var(--background-card);
+    border: 1px solid var(--border-light);
+    backdrop-filter: var(--backdrop-blur);
+}
+
+.theme-default .search-suggestion:hover,
+.theme-default .search-suggestion.active {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+/* Category Styling */
+.theme-default .category-title {
+    color: var(--text-light);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 15px var(--shadow-color-dark);
+}
+
+.theme-default .category-title.media {
+    background: linear-gradient(135deg, var(--category-media-start), var(--category-media-end));
+}
+
+.theme-default .category-title.ai {
+    background: linear-gradient(135deg, var(--category-ai-start), var(--category-ai-end));
+}
+
+.theme-default .category-title.admin {
+    background: linear-gradient(135deg, var(--category-admin-start), var(--category-admin-end));
+}
+
+.theme-default .category-title.system {
+    background: linear-gradient(135deg, var(--category-system-start), var(--category-system-end));
+}
+
+.theme-default .category-title.games {
+    background: linear-gradient(135deg, var(--category-games-start), var(--category-games-end));
+}
+
+/* Card Styling */
+.theme-default .card {
+    background: var(--card-background);
+    border: 1px solid var(--card-border);
+    backdrop-filter: var(--backdrop-blur);
+    box-shadow: 0 8px 32px var(--shadow-color);
+}
+
+.theme-default .card::before {
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+}
+
+.theme-default .card:hover {
+    box-shadow: 0 20px 40px var(--shadow-color-dark);
+}
+
+.theme-default .card-title {
+    color: var(--primary-color);
+}
+
+.theme-default .card-description {
+    color: var(--text-secondary);
+}
+
+/* Service Links */
+.theme-default .card-link {
+    color: var(--text-light);
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+}
+
+.theme-default .card-link:hover {
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    color: var(--text-light);
+}
+
+.theme-default .card-link.media {
+    background: linear-gradient(135deg, var(--category-media-start), var(--category-media-end));
+}
+
+.theme-default .card-link.ai {
+    background: linear-gradient(135deg, var(--category-ai-start), var(--category-ai-end));
+}
+
+.theme-default .card-link.admin {
+    background: linear-gradient(135deg, var(--category-admin-start), var(--category-admin-end));
+}
+
+.theme-default .card-link.system {
+    background: linear-gradient(135deg, var(--category-system-start), var(--category-system-end));
+}
+
+.theme-default .card-link.games {
+    background: linear-gradient(135deg, var(--category-games-start), var(--category-games-end));
+}
+
+/* Status Indicators */
+.theme-default .status-healthy {
+    background-color: var(--success-color);
+}
+
+.theme-default .status-warning {
+    background-color: var(--warning-color);
+}
+
+.theme-default .status-error {
+    background-color: var(--danger-color);
+}
+
+.theme-default .status-indicator {
+    background-color: var(--success-color);
+}
+
+/* Service Meta Tags */
+.theme-default .service-type {
+    background: rgba(102, 126, 234, 0.1);
+    color: var(--primary-color);
+}
+
+.theme-default .service-version {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+/* Footer */
+.theme-default .dashboard-footer {
+    background: var(--footer-background);
+    border: 1px solid var(--border-light);
+    backdrop-filter: var(--backdrop-blur);
+    color: var(--text-secondary);
+}
+
+.theme-default .footer-links a {
+    color: var(--primary-color);
+}
+
+.theme-default .footer-links a:hover {
+    color: var(--secondary-color);
+}
+
+/* Buttons */
+.theme-default .btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: var(--text-light);
+}
+
+.theme-default .btn-primary:hover {
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.theme-default .btn-secondary {
+    background: var(--background-card);
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+}
+
+.theme-default .btn-secondary:hover {
+    background: var(--primary-color);
+    color: var(--text-light);
+}
+
+/* Theme Controls */
+.theme-default .theme-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--border-light);
+    backdrop-filter: var(--backdrop-blur);
+    color: var(--text-light);
+}
+
+.theme-default .theme-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* No Results */
+.theme-default #no-results {
+    background: var(--background-card);
+    border: 1px solid var(--border-light);
+    backdrop-filter: var(--backdrop-blur);
+}
+
+.theme-default #no-results h3 {
+    color: var(--text-primary);
+}
+
+.theme-default #no-results p {
+    color: var(--text-secondary);
+}
+
+.theme-default .clear-search-btn {
+    background: var(--primary-color);
+    color: var(--text-light);
+}
+
+.theme-default .clear-search-btn:hover {
+    background: var(--secondary-color);
+}
+
+/* Error Messages */
+.theme-default .error-message {
+    background: var(--background-card);
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    backdrop-filter: var(--backdrop-blur);
+}
+
+.theme-default .error-message h3 {
+    color: var(--danger-color);
+}
+
+.theme-default .retry-button {
+    background: var(--danger-color);
+    color: var(--text-light);
+}
+
+.theme-default .retry-button:hover {
+    background: #c82333;
+}
+
+/* Loading Spinner */
+.theme-default .spinner {
+    border-color: rgba(102, 126, 234, 0.2);
+    border-left-color: var(--primary-color);
+}
+
+.theme-default .loading-spinner {
+    color: var(--text-secondary);
+}
+
+/* Search Highlighting */
+.theme-default .card mark {
+    background: rgba(255, 193, 7, 0.3);
+    color: inherit;
+}
+
+/* Form Elements */
+.theme-default .form-input {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--border-light);
+    color: var(--text-primary);
+    backdrop-filter: var(--backdrop-blur);
+}
+
+.theme-default .form-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px var(--focus-ring);
+    background: white;
+}
+
+.theme-default .form-input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* Dashboard Stats */
+.theme-default .stat-number {
+    color: var(--primary-color);
+}
+
+.theme-default .stat-label {
+    color: var(--text-secondary);
+}
+
+/* Animations and Transitions */
+.theme-default .card {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-default .card-link {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-default .btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus States */
+.theme-default .card:focus-within {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.theme-default .card-link:focus {
+    outline: 2px solid var(--text-light);
+    outline-offset: 2px;
+}
+
+.theme-default .theme-toggle-btn:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Custom Scrollbar */
+.theme-default ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.theme-default ::-webkit-scrollbar-track {
+    background: var(--gray-200);
+    border-radius: 4px;
+}
+
+.theme-default ::-webkit-scrollbar-thumb {
+    background: var(--gray-400);
+    border-radius: 4px;
+}
+
+.theme-default ::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-500);
+}
+
+/* Selection Styles */
+.theme-default ::selection {
+    background: rgba(102, 126, 234, 0.3);
+    color: var(--text-primary);
+}
+
+.theme-default ::-moz-selection {
+    background: rgba(102, 126, 234, 0.3);
+    color: var(--text-primary);
+}
+
+/* Print Styles for Default Theme */
+@media print {
+    .theme-default body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .theme-default .card {
+        background: white !important;
+        border: 1px solid #ccc !important;
+        box-shadow: none !important;
+    }
+    
+    .theme-default .category-title {
+        background: var(--gray-200) !important;
+        color: black !important;
+    }
+}
+
+/* High Contrast Adjustments */
+@media (prefers-contrast: high) {
+    .theme-default {
+        --shadow-color: rgba(0, 0, 0, 0.3);
+        --shadow-color-dark: rgba(0, 0, 0, 0.4);
+        --border-color: #000000;
+        --border-light: rgba(0, 0, 0, 0.3);
+    }
+    
+    .theme-default .card {
+        border: 2px solid var(--text-primary);
+    }
+    
+    .theme-default .btn {
+        border: 2px solid currentColor;
+    }
+}

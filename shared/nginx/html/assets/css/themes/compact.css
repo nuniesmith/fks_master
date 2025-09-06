@@ -1,0 +1,522 @@
+/* assets/css/themes/compact.css - Compact Theme for 7gram Dashboard */
+
+/* Theme: Compact Layout */
+:root.theme-compact {
+    /* Reduced Spacing Variables */
+    --spacing-xs: 2px;
+    --spacing-sm: 4px;
+    --spacing-md: 8px;
+    --spacing-lg: 12px;
+    --spacing-xl: 16px;
+    --spacing-2xl: 24px;
+    --spacing-3xl: 32px;
+    
+    /* Compact Typography */
+    --text-xs: 0.6rem;
+    --text-sm: 0.75rem;
+    --text-base: 0.875rem;
+    --text-lg: 1rem;
+    --text-xl: 1.125rem;
+    --text-2xl: 1.25rem;
+    --text-3xl: 1.5rem;
+    --text-4xl: 1.875rem;
+    --text-5xl: 2.25rem;
+    
+    /* Smaller Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-full: 25px;
+    
+    /* Reduced Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 8px 20px rgba(0, 0, 0, 0.15);
+    
+    /* Inherit default colors */
+    --primary-color: #667eea;
+    --secondary-color: #764ba2;
+    --accent-color: #ff006e;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+    --dark-color: #343a40;
+    --light-color: #f8f9fa;
+    
+    /* Compact Grid Settings */
+    --card-min-width: 280px;
+    --card-padding: 16px;
+    --card-gap: 16px;
+    --header-padding: 24px;
+}
+
+/* Compact Body Styles */
+body.theme-compact {
+    background: var(--background-primary);
+    color: var(--text-primary);
+    padding: var(--spacing-md);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+}
+
+/* Compact Container */
+.theme-compact .container {
+    max-width: 1600px; /* Wider for more content */
+    padding: 0 var(--spacing-sm);
+}
+
+/* Compact Header */
+.theme-compact .dashboard-header {
+    padding: var(--header-padding);
+    margin-bottom: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+}
+
+.theme-compact .dashboard-header h1 {
+    font-size: var(--text-4xl);
+    margin-bottom: var(--spacing-xs);
+}
+
+.theme-compact .dashboard-header .subtitle {
+    font-size: var(--text-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+/* Compact Search */
+.theme-compact .search-container {
+    margin: var(--spacing-md) 0;
+}
+
+.theme-compact .search-input {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--text-sm);
+    border-radius: var(--radius-full);
+}
+
+/* Compact Categories */
+.theme-compact .category {
+    margin-bottom: var(--spacing-2xl);
+}
+
+.theme-compact .category-title {
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--text-2xl);
+    border-radius: var(--radius-md);
+}
+
+/* Compact Services Grid */
+.theme-compact .services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr));
+    gap: var(--card-gap);
+}
+
+/* Compact Cards */
+.theme-compact .card {
+    padding: var(--card-padding);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(8px);
+}
+
+.theme-compact .card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: var(--shadow-lg);
+}
+
+.theme-compact .card-header {
+    margin-bottom: var(--spacing-sm);
+}
+
+.theme-compact .card-title {
+    font-size: var(--text-lg);
+    margin: 0 0 var(--spacing-xs) 0;
+}
+
+.theme-compact .card-description {
+    font-size: var(--text-sm);
+    margin-bottom: var(--spacing-md);
+    line-height: 1.4;
+}
+
+.theme-compact .card-meta {
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-md);
+}
+
+.theme-compact .service-type,
+.theme-compact .service-version {
+    font-size: var(--text-xs);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+/* Compact Service Links */
+.theme-compact .card-link {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--text-sm);
+    border-radius: var(--radius-full);
+}
+
+.theme-compact .card-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* Compact Quick Actions */
+.theme-compact .quick-actions {
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+}
+
+.theme-compact .quick-action {
+    width: 24px;
+    height: 24px;
+    font-size: var(--text-xs);
+    border-radius: var(--radius-sm);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Compact Health Indicator */
+.theme-compact .health-indicator {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+}
+
+.theme-compact .health-dot {
+    width: 6px;
+    height: 6px;
+}
+
+.theme-compact .health-text {
+    font-size: var(--text-xs);
+}
+
+.theme-compact .response-time {
+    font-size: var(--text-xs);
+}
+
+/* Compact Status Indicators */
+.theme-compact .service-status {
+    font-size: var(--text-sm);
+}
+
+.theme-compact .status-indicator {
+    width: 6px;
+    height: 6px;
+    margin-right: var(--spacing-xs);
+}
+
+/* Compact Dashboard Stats */
+.theme-compact .dashboard-stats {
+    gap: var(--spacing-lg);
+    margin: var(--spacing-md) 0;
+}
+
+.theme-compact .stat-item {
+    gap: var(--spacing-xs);
+}
+
+.theme-compact .stat-number {
+    font-size: var(--text-xl);
+}
+
+.theme-compact .stat-label {
+    font-size: var(--text-xs);
+}
+
+/* Compact Theme Controls */
+.theme-compact .theme-controls {
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+}
+
+.theme-compact .theme-toggle-btn {
+    width: 36px;
+    height: 36px;
+    font-size: var(--text-base);
+    border-radius: 50%;
+}
+
+/* Compact Search Suggestions */
+.theme-compact .search-suggestions {
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-xs);
+    max-height: 200px;
+}
+
+.theme-compact .search-suggestion {
+    padding: var(--spacing-sm) var(--spacing-md);
+    gap: var(--spacing-sm);
+}
+
+.theme-compact .suggestion-icon {
+    font-size: var(--text-base);
+    width: 20px;
+}
+
+.theme-compact .suggestion-text {
+    font-size: var(--text-sm);
+}
+
+.theme-compact .suggestion-type {
+    font-size: var(--text-xs);
+}
+
+/* Compact Footer */
+.theme-compact .dashboard-footer {
+    padding: var(--spacing-lg);
+    margin-top: var(--spacing-2xl);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-sm);
+}
+
+.theme-compact .footer-links {
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+}
+
+/* Compact Buttons */
+.theme-compact .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--text-sm);
+    border-radius: var(--radius-full);
+    gap: var(--spacing-xs);
+}
+
+.theme-compact .btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Compact Form Elements */
+.theme-compact .form-input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--text-sm);
+    border-radius: var(--radius-full);
+}
+
+/* Compact Error/No Results */
+.theme-compact #no-results {
+    padding: var(--spacing-2xl);
+    margin-top: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+}
+
+.theme-compact #no-results h3 {
+    font-size: var(--text-xl);
+    margin-bottom: var(--spacing-sm);
+}
+
+.theme-compact #no-results p {
+    font-size: var(--text-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.theme-compact .error-message {
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+}
+
+/* Compact Loading Spinner */
+.theme-compact .loading-spinner {
+    padding: var(--spacing-xl);
+}
+
+.theme-compact .spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+    margin-bottom: var(--spacing-sm);
+}
+
+/* Dense Grid Layout Options */
+.theme-compact.dense-mode .services-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.theme-compact.dense-mode .card {
+    padding: var(--spacing-md);
+}
+
+.theme-compact.dense-mode .card-title {
+    font-size: var(--text-base);
+}
+
+.theme-compact.dense-mode .card-description {
+    font-size: var(--text-xs);
+    line-height: 1.3;
+}
+
+/* Extra Compact Mode */
+.theme-compact.extra-compact .services-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.theme-compact.extra-compact .card {
+    padding: var(--spacing-sm);
+}
+
+.theme-compact.extra-compact .card-title {
+    font-size: var(--text-sm);
+}
+
+.theme-compact.extra-compact .card-description {
+    display: none; /* Hide descriptions in extra compact mode */
+}
+
+.theme-compact.extra-compact .card-meta {
+    display: none; /* Hide meta in extra compact mode */
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+    .theme-compact .services-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: var(--spacing-sm);
+    }
+    
+    .theme-compact .dashboard-header {
+        padding: var(--spacing-lg);
+    }
+    
+    .theme-compact .dashboard-header h1 {
+        font-size: var(--text-3xl);
+    }
+    
+    .theme-compact .category-title {
+        font-size: var(--text-xl);
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    .theme-compact .dashboard-stats {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .theme-compact .footer-links {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+}
+
+@media (max-width: 480px) {
+    body.theme-compact {
+        padding: var(--spacing-xs);
+    }
+    
+    .theme-compact .services-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-xs);
+    }
+    
+    .theme-compact .dashboard-header h1 {
+        font-size: var(--text-2xl);
+    }
+    
+    .theme-compact .category-title {
+        font-size: var(--text-lg);
+    }
+    
+    .theme-compact .card {
+        padding: var(--spacing-sm);
+    }
+    
+    .theme-compact .card-link {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--text-xs);
+    }
+}
+
+/* High Density Display Support */
+@media (min-width: 1200px) {
+    .theme-compact .services-grid {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+}
+
+@media (min-width: 1600px) {
+    .theme-compact.ultra-dense .services-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--spacing-sm);
+    }
+}
+
+/* Accessibility Improvements for Compact Theme */
+.theme-compact .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus improvements for compact elements */
+.theme-compact .card:focus-within {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 1px;
+}
+
+.theme-compact .card-link:focus {
+    outline: 2px solid var(--text-light);
+    outline-offset: 1px;
+}
+
+/* Print styles for compact theme */
+@media print {
+    .theme-compact .services-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: var(--spacing-xs);
+    }
+    
+    .theme-compact .card {
+        padding: var(--spacing-sm);
+        break-inside: avoid;
+    }
+    
+    .theme-compact .quick-actions,
+    .theme-compact .theme-controls {
+        display: none !important;
+    }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    .theme-compact .card:hover {
+        transform: none;
+    }
+    
+    .theme-compact .card-link:hover {
+        transform: none;
+    }
+    
+    .theme-compact .btn:hover {
+        transform: none;
+    }
+}
+
+/* High Contrast Mode Adjustments */
+@media (prefers-contrast: high) {
+    .theme-compact {
+        --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-xl: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+    
+    .theme-compact .card {
+        border: 1px solid var(--text-primary);
+    }
+}

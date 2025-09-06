@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# NGINX Deployment - Main Entry Point
+# This script provides easy access to all deployment functions
+
+set -e
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$SCRIPT_DIR/scripts"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+show_help() {
+    echo "==============================================="
+    echo "   NGINX Reverse Proxy - Deployment Manager"
+    echo "==============================================="
+    echo ""
+    echo "Usage: $0 [COMMAND]"
+    echo ""
+    echo "Commands:"
+    echo "  deploy          Run full deployment pipeline"
+    echo "  setup           Run initial server setup"
+    echo "  ssl             Setup SSL certificates"
+    echo "  dns             Update DNS records"
+    echo "  tailscale       Setup Tailscale"
+    echo "  monitor         Setup monitoring"
+    echo "  backup          Setup backup system"
+    echo "  health          Run health checks"
+    echo "  status          Check system status"
+    echo "  rollback        Rollback deployment"
+    echo "  help            Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 deploy       # Full deployment"
+    echo "  $0 ssl          # Just setup SSL"
+    echo "  $0 status       # Check status"
+    echo ""
+}
+
+case "${1:-help}" in
+    deploy)
+        echo -e "${BLUE}Running full deployment...${NC}"
+        exec "$SCRIPTS_DIR/deployment/deploy.sh" "${@:2}"
+        ;;
+    setup)
+        echo -e "${BLUE}Running server setup...${NC}"
+        exec "$SCRIPTS_DIR/deployment/setup.sh" "${@:2}"
+        ;;
+    ssl)
+        echo -e "${BLUE}Setting up SSL certificates...${NC}"
+        exec "$SCRIPTS_DIR/ssl/lets_encrypt.sh" "${@:2}"
+        ;;
+    dns)
+        echo -e "${BLUE}Updating DNS records...${NC}"
+        exec "$SCRIPTS_DIR/dns/cloudflare-dns-manager.sh" "${@:2}"
+        ;;
+    tailscale)
+        echo -e "${BLUE}Setting up Tailscale...${NC}"
+        exec "$SCRIPTS_DIR/deployment/tailscale.sh" "${@:2}"
+        ;;
+    monitor)
+        echo -e "${BLUE}Setting up monitoring...${NC}"
+        exec "$SCRIPTS_DIR/setup-monitoring.sh" "${@:2}"
+        ;;
+    backup)
+        echo -e "${BLUE}Setting up backup system...${NC}"
+        exec "$SCRIPTS_DIR/setup-backup.sh" "${@:2}"
+        ;;
+    health)
+        echo -e "${BLUE}Running health checks...${NC}"
+        exec "$SCRIPTS_DIR/health-monitor.sh" "${@:2}"
+        ;;
+    status)
+        echo -e "${BLUE}Checking system status...${NC}"
+        exec "$SCRIPTS_DIR/7gram-status.sh" "${@:2}"
+        ;;
+    rollback)
+        echo -e "${YELLOW}Rolling back deployment...${NC}"
+        exec "$SCRIPTS_DIR/rollback.sh" "${@:2}"
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo -e "${RED}Error: Unknown command '$1'${NC}"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac

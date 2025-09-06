@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "fks:health": "curl -f http://localhost:3000/health || exit 1",
+    "fks:build": "npm run build && npm run fks:health",
+    "fks:docker:build": "docker build -t fks-web:latest -f ../shared_templates/docker/Dockerfile.react .",
+    "fks:docker:run": "docker run -d -p 3000:3000 --name fks-web fks-web:latest",
+    "fks:test:health": "npm run fks:docker:run && sleep 10 && npm run fks:health && docker stop fks-web && docker rm fks-web"
+  }
+}

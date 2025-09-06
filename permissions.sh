@@ -1,0 +1,1 @@
+sudo chmod 755 * -Rf && sudo chown $USER:$USER * -Rf

@@ -1,0 +1,176 @@
+# Reusable CI workflow for FKS services
+# Usage example (in service folder .github/workflows/<service>-ci.yml):
+# name: fks_api CI
+# on: { push: { branches: [ main ] }, pull_request: {}, workflow_dispatch: {} }
+# jobs:
+#   call-shared:
+#     uses: ./.github/workflows/service-ci-template.yml
+#     with:
+#       service_path: fks_api
+#       service_slug: api
+#       runtime: python
+#       service_type: api
+#     secrets: inherit
+
+name: service-ci-template
+
+on:
+  workflow_call:
+    inputs:
+      service_path:
+        required: true
+        type: string
+      service_slug:
+        required: true
+        type: string
+      runtime:
+        required: true
+        type: string
+      service_type:
+        required: true
+        type: string
+      python_version:
+        required: false
+        type: string
+        default: '3.11'
+      build_type:
+        required: false
+        type: string
+        default: 'cpu'
+    secrets:
+      DOCKER_USERNAME:
+        required: false
+      DOCKER_TOKEN:
+        required: false
+
+jobs:
+  test:
+    name: Test (${ { inputs.service_slug } })
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ inputs.service_path }}
+
+      - name: Set up Python
+        if: ${{ inputs.runtime == 'python' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: pip
+          cache-dependency-path: |
+            ${{ inputs.service_path }}/requirements.txt
+            ${{ inputs.service_path }}/requirements.dev.txt
+
+      - name: Install dependencies (python)
+        if: ${{ inputs.runtime == 'python' }}
+        working-directory: ${{ inputs.service_path }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          if [ -f requirements.dev.txt ]; then pip install -r requirements.dev.txt; fi
+
+      - name: Run tests (pytest)
+        if: ${{ inputs.runtime == 'python' }}
+        working-directory: ${{ inputs.service_path }}
+        run: |
+          if [ -d tests ]; then pytest -q --maxfail=1 --disable-warnings --color=yes; else echo 'No tests directory'; fi
+
+      - name: Upload pytest cache
+        if: always() && inputs.runtime == 'python'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-cache-${{ inputs.service_slug }}
+          path: ${{ inputs.service_path }}/.pytest_cache
+          if-no-files-found: ignore
+
+  build:
+    name: Build (${ { inputs.service_slug } })
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SERVICE_SLUG: ${{ inputs.service_slug }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image namespace
+        id: img
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "IMAGE_NS=${{ secrets.DOCKER_USERNAME }}" >> $GITHUB_OUTPUT
+            echo "PUSH_OK=true" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_NS=local" >> $GITHUB_OUTPUT
+            echo "PUSH_OK=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login (if secrets provided)
+        run: |
+          if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_TOKEN" ]; then
+            echo "Logging into registry";
+            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin || exit 1;
+          else
+            echo "No docker credentials; skipping login";
+          fi
+        env:
+          DOCKER_USERNAME: $DOCKER_USERNAME
+          DOCKER_TOKEN: $DOCKER_TOKEN
+
+      - name: Meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.img.outputs.IMAGE_NS }}/fks
+          tags: |
+            type=ref,event=branch,prefix=${{ env.SERVICE_SLUG }}-
+            type=sha,prefix=${{ env.SERVICE_SLUG }}-
+            type=raw,value=${{ env.SERVICE_SLUG }}-latest
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.service_path }}
+          file: ${{ inputs.service_path }}/Dockerfile
+          push: ${{ steps.img.outputs.PUSH_OK == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SERVICE_RUNTIME=${{ inputs.runtime }}
+            SERVICE_TYPE=${{ inputs.service_type }}
+            BUILD_TYPE=${{ inputs.build_type }}
+
+      - name: Smoke test (HTTP health)
+        run: |
+          TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker run -d --rm -p 8080:8080 --name svc_test $TAG || (echo 'Run failed'; exit 1)
+          for i in {1..25}; do
+            sleep 2
+            if curl -sf http://localhost:8080/health >/dev/null; then
+              echo 'Healthy'; curl -s http://localhost:8080/health | head -c 400; OK=1; break; fi
+            printf '.'
+          done
+          echo ''
+          if [ "${OK:-}" != 1 ]; then echo 'Unhealthy'; docker logs svc_test || true; exit 1; fi
+          docker logs svc_test | tail -n 60 || true
+          docker stop svc_test
+
+      - name: Export artifact (no push)
+        if: ${{ steps.img.outputs.PUSH_OK != 'true' }}
+        run: |
+          docker save $(echo "${{ steps.meta.outputs.tags }}" | head -n1) | gzip > image-${{ inputs.service_slug }}.tar.gz
+
+      - name: Upload artifact (no push)
+        if: ${{ steps.img.outputs.PUSH_OK != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ inputs.service_slug }}
+          path: image-${{ inputs.service_slug }}.tar.gz

@@ -1,0 +1,37 @@
+services:
+  fks_master:
+    build:
+      context: .
+      dockerfile: shared/docker/templates/Dockerfile.rust
+    container_name: fks_master
+    environment:
+      - RUST_LOG=info
+      - FKS_MASTER_HOST=0.0.0.0
+      - FKS_MASTER_PORT=3030
+    ports:
+      - "3030:3030"
+      - "9090:9090"  # Prometheus metrics
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # For Docker container control
+      - master_config:/app/config:ro
+      - master_logs:/app/logs
+    networks:
+      - fks_net
+    # Remove hard dependencies to allow flexible startup
+    # External services will be discovered via Docker API
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3030/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+networks:
+  fks_net:
+    name: fks_net
+    external: true
+
+volumes:
+  master_logs:
+  master_config:

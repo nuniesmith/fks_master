@@ -1,0 +1,48 @@
+# monitoring/alerts/application-alerts.yml - Application alerting rules
+groups:
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # Service endpoint down
+      - alert: ServiceEndpointDown
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: application
+        annotations:
+          summary: "Service endpoint down: {{ $labels.instance }}"
+          description: "The endpoint {{ $labels.instance }} is not responding"
+
+      # Slow response time
+      - alert: SlowResponseTime
+        expr: probe_http_duration_seconds > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "Slow response from {{ $labels.instance }}"
+          description: "Response time is {{ $value | humanize }}s"
+
+      # SSL certificate expiring
+      - alert: SSLCertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry - time() < 7 * 24 * 60 * 60
+        for: 1h
+        labels:
+          severity: warning
+          service: ssl
+        annotations:
+          summary: "SSL certificate expiring soon for {{ $labels.instance }}"
+          description: "Certificate expires in {{ $value | humanizeDuration }}"
+
+      # Deployment failure rate
+      - alert: HighDeploymentFailureRate
+        expr: rate(deployment_failures_total[1h]) > 0.5
+        for: 30m
+        labels:
+          severity: warning
+          service: deployment
+        annotations:
+          summary: "High deployment failure rate"
+          description: "Deployment failure rate is {{ $value | humanize }} per hour"

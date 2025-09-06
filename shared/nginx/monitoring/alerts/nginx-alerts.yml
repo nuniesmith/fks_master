@@ -1,0 +1,48 @@
+# monitoring/alerts/nginx-alerts.yml - Nginx alerting rules
+groups:
+  - name: nginx_alerts
+    interval: 30s
+    rules:
+      # High error rate
+      - alert: NginxHighErrorRate
+        expr: rate(nginx_http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: nginx
+        annotations:
+          summary: "High error rate on {{ $labels.instance }}"
+          description: "Nginx is returning 5xx errors at {{ $value | humanize }} req/s"
+
+      # Nginx down
+      - alert: NginxDown
+        expr: up{job="nginx"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: nginx
+        annotations:
+          summary: "Nginx is down on {{ $labels.instance }}"
+          description: "Nginx exporter cannot reach nginx service"
+
+      # High request latency
+      - alert: NginxHighLatency
+        expr: histogram_quantile(0.95, rate(nginx_http_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: nginx
+        annotations:
+          summary: "High request latency on {{ $labels.instance }}"
+          description: "95th percentile latency is {{ $value | humanize }}s"
+
+      # Connection limit approaching
+      - alert: NginxConnectionLimit
+        expr: nginx_connections_active / nginx_connections_limit > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: nginx
+        annotations:
+          summary: "Nginx approaching connection limit"
+          description: "Active connections at {{ $value | humanizePercentage }} of limit"

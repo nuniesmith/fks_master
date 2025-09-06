@@ -1,0 +1,134 @@
+# Main proxy configuration for 7gram.xyz network
+# Routes traffic to sullivan and freddy servers via Tailscale
+
+# Additional HTTP server for specific routes
+server {
+    listen 80;
+    listen [::]:80;
+    server_name 7gram.xyz *.7gram.xyz;
+
+    # ACME challenge for Let's Encrypt
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        allow all;
+    }
+
+    # Health check endpoint
+    location = /health {
+        access_log off;
+        add_header Content-Type "application/json; charset=utf-8" always;
+        return 200 '{"status":"healthy","service":"nginx-proxy","timestamp":"$time_iso8601"}';
+    }
+
+    # Redirect all other HTTP to HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# Main HTTPS server for 7gram.xyz domains
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name 7gram.xyz *.7gram.xyz;
+
+    # SSL configuration
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    
+    # Include SSL settings
+    include /etc/nginx/includes/ssl.conf;
+    include /etc/nginx/includes/security.conf;
+
+    # Health check endpoint
+    location = /health {
+        access_log off;
+        add_header Content-Type "application/json; charset=utf-8" always;
+        return 200 '{"status":"healthy","service":"nginx-proxy","timestamp":"$time_iso8601","ssl":"enabled"}';
+    }
+
+    # Route to Sullivan (main server)
+    location / {
+        # Default route to Sullivan server
+        proxy_pass http://sullivan;
+        include /etc/nginx/includes/proxy.conf;
+        
+        # Custom headers for Sullivan
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Server $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Specific routes to Freddy
+    location /freddy {
+        proxy_pass http://freddy/;
+        include /etc/nginx/includes/proxy.conf;
+        
+        # Remove /freddy prefix
+        rewrite ^/freddy/(.*) /$1 break;
+    }
+
+    # Route specific services to appropriate servers
+    location /media {
+        proxy_pass http://sullivan;
+        include /etc/nginx/includes/proxy.conf;
+    }
+
+    location /downloads {
+        proxy_pass http://sullivan;
+        include /etc/nginx/includes/proxy.conf;
+    }
+
+    location /ai {
+        proxy_pass http://sullivan;
+        include /etc/nginx/includes/proxy.conf;
+    }
+
+    location /auth {
+        proxy_pass http://freddy;
+        include /etc/nginx/includes/proxy.conf;
+    }
+
+    location /dns {
+        proxy_pass http://freddy;
+        include /etc/nginx/includes/proxy.conf;
+    }
+}
+
+# Specific subdomain routing
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name sullivan.7gram.xyz;
+
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    
+    include /etc/nginx/includes/ssl.conf;
+    include /etc/nginx/includes/security.conf;
+
+    location / {
+        proxy_pass http://sullivan;
+        include /etc/nginx/includes/proxy.conf;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name freddy.7gram.xyz;
+
+    ssl_certificate /etc/letsencrypt/live/7gram.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/7gram.xyz/privkey.pem;
+    
+    include /etc/nginx/includes/ssl.conf;
+    include /etc/nginx/includes/security.conf;
+
+    location / {
+        proxy_pass http://freddy;
+        include /etc/nginx/includes/proxy.conf;
+    }
+}

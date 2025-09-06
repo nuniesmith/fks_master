@@ -1,0 +1,149 @@
+---
+# Nginx Reverse Proxy Deployment using Shared Deploy Workflow
+#
+# This workflow intentionally delegates all heavy lifting to the shared
+# reusable workflow in nuniesmith/actions. It mirrors the proven pattern
+# used by ATS and FKS: Stage 0 preflight, Stage 1 infra, Stage 2 systemd
+# (Tailscale auth, iptables), then service deploy, followed by a tiny
+# nginx-specific DNS update job and a concise summary.
+
+name: 🚀 Deploy Nginx Reverse Proxy Service
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options: ['deploy','destroy','health-check','restart']
+        default: 'deploy'
+      target_region:
+        description: 'Linode region'
+        required: false
+        type: choice
+        options: ['ca-central','us-east','us-west','eu-west']
+        default: 'ca-central'
+      server_type:
+        description: 'Linode server type'
+        required: false
+        type: choice
+        options: ['g6-nanode-1','g6-standard-1','g6-standard-2','g6-standard-4']
+        default: 'g6-nanode-1'
+      overwrite_server:
+        description: 'Destroy and recreate existing server automatically'
+        required: false
+        type: boolean
+        default: true
+      skip_docker_build:
+        description: 'Skip building Docker images'
+        required: false
+        type: boolean
+        default: false
+      confirm_destruction:
+        description: 'Type "DESTROY" to confirm destruction'
+        required: false
+        type: string
+
+jobs:
+  # Deploy Nginx via shared workflow (same pattern as ATS)
+  deploy-nginx:
+    name: 🏗️ Deploy Nginx via Shared Workflow
+    if: ${{ inputs.action_type != 'destroy' || inputs.confirm_destruction == 'DESTROY' }}
+    uses: nuniesmith/actions/.github/workflows/deploy.yml@main
+    with:
+      service_name: 'nginx'
+      source_repository: 'nginx'
+      action_type: ${{ inputs.action_type || 'deploy' }}
+      server_type: ${{ inputs.server_type || 'g6-nanode-1' }}
+      target_region: ${{ inputs.target_region || 'ca-central' }}
+      domain_suffix: '7gram.xyz'
+      overwrite_server: ${{ inputs.overwrite_server || true }}
+    secrets:
+      LINODE_CLI_TOKEN: ${{ secrets.LINODE_CLI_TOKEN }}
+      SERVICE_ROOT_PASSWORD: ${{ secrets.NGINX_ROOT_PASSWORD }}
+      ACTIONS_USER_PASSWORD: ${{ secrets.ACTIONS_USER_PASSWORD }}
+      JORDAN_PASSWORD: ${{ secrets.JORDAN_PASSWORD }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      TAILSCALE_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+
+  # Post-deploy DNS updates for nginx-specific records (root, www, nginx)
+  dns-update-nginx:
+    name: 🌐 Update Nginx DNS Records
+    runs-on: ubuntu-latest
+    needs: [deploy-nginx]
+    if: |
+      needs.deploy-nginx.result == 'success' &&
+      needs.deploy-nginx.outputs.tailscale_ip != '' &&
+      inputs.action_type == 'deploy'
+    steps:
+      - name: 📁 Checkout Actions Repository
+        uses: actions/checkout@v4
+        with:
+          repository: nuniesmith/actions
+          token: ${{ github.token }}
+      - name: 🌐 Update Root, WWW, and Nginx records
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TAILSCALE_IP: ${{ needs.deploy-nginx.outputs.tailscale_ip }}
+        run: |
+          echo "🌐 Updating DNS records to point to ${TAILSCALE_IP}"
+          chmod +x ./scripts/dns/cloudflare-updater.sh
+          # Update nginx.7gram.xyz and friends via service updater
+          ./scripts/dns/cloudflare-updater.sh update-service \
+            --service "nginx" \
+            --ip "${TAILSCALE_IP}" \
+            --domain "7gram.xyz" \
+            --token "${CLOUDFLARE_API_TOKEN}" \
+            --zone-id "${CLOUDFLARE_ZONE_ID}" || echo "⚠️ nginx service DNS update returned non-zero"
+          # Explicitly ensure apex and www A-records are set to the same IP
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y jq >/dev/null 2>&1 || true
+          update_one() {
+            local name="$1"
+            local ip="$2"
+            curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records?name=${name}&type=A" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" | jq -r '.result[0].id // empty' > /tmp/rec_id
+            REC_ID=$(cat /tmp/rec_id)
+            if [[ -n "$REC_ID" ]]; then
+              curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records/${REC_ID}" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data "{\"type\":\"A\",\"name\":\"${name}\",\"content\":\"${ip}\",\"ttl\":120,\"proxied\":false}" >/dev/null
+            else
+              curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data "{\"type\":\"A\",\"name\":\"${name}\",\"content\":\"${ip}\",\"ttl\":120,\"proxied\":false}" >/dev/null
+            fi
+          }
+          update_one "7gram.xyz" "${TAILSCALE_IP}"
+          update_one "www.7gram.xyz" "${TAILSCALE_IP}"
+          echo "✅ DNS updated: 7gram.xyz, www.7gram.xyz, nginx.7gram.xyz → ${TAILSCALE_IP}"
+
+  # Summary
+  summary:
+    name: 📋 Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-nginx, dns-update-nginx]
+    if: always()
+    steps:
+      - name: 📋 Deployment Summary
+        run: |
+          echo "📋 Deployment Summary for nginx"
+          echo "=================================================="
+          echo "Action: ${{ inputs.action_type || 'deploy' }}"
+          echo "Infra: ${{ needs.deploy-nginx.result }}"
+          echo "DNS: ${{ needs.dns-update-nginx.result }}"
+          echo "Server IP: ${{ needs.deploy-nginx.outputs.server_ip }}"
+          echo "Tailscale IP: ${{ needs.deploy-nginx.outputs.tailscale_ip }}"
+          echo "Server ID: ${{ needs.deploy-nginx.outputs.server_id }}"
+          echo "Status: ${{ needs.deploy-nginx.outputs.deployment_status }}"

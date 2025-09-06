@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="7Gram Network Dashboard - Access all your home network services">
+    <meta name="theme-color" content="#667eea">
+    
+    <title>🏠 7Gram Dashboard</title>
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --warning-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --card-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            --border-radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 40px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1.2rem;
+            margin-bottom: 25px;
+        }
+
+        .search-container {
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px 25px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .search-input:focus {
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .services-container {
+            display: grid;
+            gap: 30px;
+        }
+
+        .category {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 30px;
+            transition: var(--transition);
+        }
+
+        .category:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--card-hover-shadow);
+        }
+
+        .category-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .category-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .category-title.media { color: #e74c3c; }
+        .category-title.ai { color: #9b59b6; }
+        .category-title.admin { color: #f39c12; }
+        .category-title.system { color: #27ae60; }
+
+        .category-description {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .service-card {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: var(--transition);
+            text-align: center;
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .service-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .service-name {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .service-description {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .service-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--primary-gradient);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            min-width: 140px;
+        }
+
+        .service-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .service-link.media {
+            background: var(--secondary-gradient);
+        }
+
+        .service-link.ai {
+            background: var(--success-gradient);
+        }
+
+        .service-link.admin {
+            background: var(--warning-gradient);
+        }
+
+        .footer {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 30px;
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .footer h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .footer p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2.2rem;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .services-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 15px;
+            }
+            
+            .stats-bar {
+                gap: 15px;
+            }
+            
+            .stat-item {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 25px 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .services-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .service-card {
+                padding: 20px;
+            }
+        }
+
+        /* Search functionality */
+        .service-card.hidden {
+            display: none;
+        }
+
+        .category.hidden {
+            display: none;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            display: none;
+        }
+
+        .no-results.show {
+            display: block;
+        }
+
+        .no-results h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        /* Loading animation */
+        .loading-shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>
+                <span>🏠</span>
+                <span>7Gram Network Dashboard</span>
+            </h1>
+            <p class="subtitle">Your complete home services ecosystem</p>
+            
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    class="search-input" 
+                    placeholder="🔍 Search services... (Ctrl+K)"
+                    autocomplete="off"
+                >
+            </div>
+            
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span>📊</span>
+                    <span>Services: <span id="total-services">0</span></span>
+                </div>
+                <div class="stat-item">
+                    <span>📂</span>
+                    <span>Categories: <span id="total-categories">0</span></span>
+                </div>
+                <div class="stat-item">
+                    <span>🕒</span>
+                    <span>Updated: <span id="last-updated">Now</span></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Services Container -->
+        <main class="services-container" id="services-container">
+            <!-- Services will be loaded here -->
+        </main>
+
+        <!-- No Results Message -->
+        <div class="no-results" id="no-results">
+            <h3>🔍 No services found</h3>
+            <p>Try adjusting your search terms or browse all services.</p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <h3>7Gram Network Dashboard</h3>
+            <p>
+                Version 2.1.0 | Simplified Services Portal<br>
+                Dashboard automatically redirects through nginx proxy
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Service configuration
+        const services = {
+            'Media Services': {
+                icon: '🎬',
+                color: 'media',
+                description: 'Stream movies, TV shows, music, and audiobooks',
+                services: [
+                    { id: 'emby', name: 'Emby', icon: '🎬', description: 'Premium media server for movies and TV shows', url: 'https://emby.7gram.xyz' },
+                    { id: 'jellyfin', name: 'Jellyfin', icon: '📺', description: 'Free and open-source media server', url: 'https://jellyfin.7gram.xyz' },
+                    { id: 'plex', name: 'Plex', icon: '🎭', description: 'Popular media streaming platform', url: 'https://plex.7gram.xyz' },
+                    { id: 'audiobookshelf', name: 'AudioBookshelf', icon: '🎧', description: 'Audiobook and podcast server', url: 'https://abs.7gram.xyz' },
+                    { id: 'calibre', name: 'Calibre Web', icon: '📚', description: 'E-book library management', url: 'https://calibreweb.7gram.xyz' },
+                    { id: 'navidrome', name: 'Navidrome', icon: '🎵', description: 'Music streaming server', url: 'https://music.7gram.xyz' },
+                    { id: 'nextcloud', name: 'Nextcloud', icon: '☁️', description: 'Personal cloud storage and sync', url: 'https://nc.7gram.xyz' },
+                    { id: 'youtube-dl', name: 'YouTube DL', icon: '📥', description: 'Video download service', url: 'https://youtube.7gram.xyz' }
+                ]
+            },
+            'AI Services': {
+                icon: '🤖',
+                color: 'ai', 
+                description: 'AI chat, image generation, and machine learning tools',
+                services: [
+                    { id: 'open-webui', name: 'Open WebUI', icon: '💬', description: 'AI chat interface for multiple models', url: 'https://ai.7gram.xyz' },
+                    { id: 'ollama', name: 'Ollama API', icon: '🧠', description: 'Local AI model API service', url: 'https://ollama.7gram.xyz' },
+                    { id: 'stable-diffusion', name: 'Stable Diffusion', icon: '🎨', description: 'AI image generation service', url: 'https://sd.7gram.xyz' },
+                    { id: 'comfyui', name: 'ComfyUI', icon: '⚡', description: 'Advanced AI workflow interface', url: 'https://comfy.7gram.xyz' },
+                    { id: 'whisper', name: 'Whisper ASR', icon: '🎙️', description: 'Speech-to-text recognition', url: 'https://whisper.7gram.xyz' },
+                    { id: 'code-assistant', name: 'Code Assistant', icon: '👨‍💻', description: 'AI-powered code helper', url: 'https://code.7gram.xyz' },
+                    { id: 'ai-chat', name: 'AI Chat', icon: '🗨️', description: 'Direct AI chat interface', url: 'https://chat.7gram.xyz' }
+                ]
+            },
+            'Media Management': {
+                icon: '⚙️',
+                color: 'admin',
+                description: 'Download and organize your media library',
+                services: [
+                    { id: 'sonarr', name: 'Sonarr', icon: '📺', description: 'TV series management and automation', url: 'https://sonarr.7gram.xyz' },
+                    { id: 'radarr', name: 'Radarr', icon: '🎬', description: 'Movie collection management', url: 'https://radarr.7gram.xyz' },
+                    { id: 'lidarr', name: 'Lidarr', icon: '🎵', description: 'Music collection management', url: 'https://lidarr.7gram.xyz' },
+                    { id: 'readarr-audio', name: 'Readarr Audiobooks', icon: '🎧', description: 'Audiobook collection management', url: 'https://audiobooks.7gram.xyz' },
+                    { id: 'readarr-ebooks', name: 'Readarr E-books', icon: '📖', description: 'E-book collection management', url: 'https://ebooks.7gram.xyz' },
+                    { id: 'jackett', name: 'Jackett', icon: '🔍', description: 'Torrent indexer proxy', url: 'https://jackett.7gram.xyz' },
+                    { id: 'qbittorrent', name: 'qBittorrent', icon: '⬇️', description: 'Torrent download client', url: 'https://qbt.7gram.xyz' },
+                    { id: 'filebot', name: 'FileBot', icon: '📁', description: 'Automated file organization', url: 'https://filebot.7gram.xyz' }
+                ]
+            },
+            'System Services': {
+                icon: '🛠️',
+                color: 'system',
+                description: 'Network monitoring, automation, and system management',
+                services: [
+                    { id: 'home-assistant', name: 'Home Assistant', icon: '🏠', description: 'Home automation platform', url: 'https://home.7gram.xyz' },
+                    { id: 'pihole', name: 'Pi-hole', icon: '🛡️', description: 'Network-wide ad blocking', url: 'https://pihole.7gram.xyz' },
+                    { id: 'grafana', name: 'Grafana', icon: '📊', description: 'System monitoring dashboards', url: 'https://grafana.7gram.xyz' },
+                    { id: 'prometheus', name: 'Prometheus', icon: '📈', description: 'Metrics collection and monitoring', url: 'https://prometheus.7gram.xyz' },
+                    { id: 'uptime-kuma', name: 'Uptime Kuma', icon: '📡', description: 'Service uptime monitoring', url: 'https://uptime.7gram.xyz' },
+                    { id: 'portainer', name: 'Portainer', icon: '🐳', description: 'Docker container management', url: 'https://portainer.7gram.xyz' },
+                    { id: 'authelia', name: 'Authelia', icon: '🔐', description: 'Authentication and authorization', url: 'https://auth.7gram.xyz' },
+                    { id: 'duplicati', name: 'Duplicati', icon: '💾', description: 'Backup solution', url: 'https://duplicati.7gram.xyz' },
+                    { id: 'watchtower', name: 'Watchtower', icon: '🔄', description: 'Automated container updates', url: 'https://watchtower.7gram.xyz' }
+                ]
+            }
+        };
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            loadServices();
+            setupSearch();
+            setupKeyboardShortcuts();
+            updateStats();
+        });
+
+        // Load and render services
+        function loadServices() {
+            const container = document.getElementById('services-container');
+            container.innerHTML = '';
+
+            Object.entries(services).forEach(([categoryName, categoryData]) => {
+                const categoryElement = createCategoryElement(categoryName, categoryData);
+                container.appendChild(categoryElement);
+            });
+        }
+
+        // Create category element
+        function createCategoryElement(categoryName, categoryData) {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'category';
+            categoryDiv.dataset.category = categoryData.color;
+
+            categoryDiv.innerHTML = `
+                <div class="category-header">
+                    <h2 class="category-title ${categoryData.color}">
+                        <span>${categoryData.icon}</span>
+                        <span>${categoryName}</span>
+                    </h2>
+                    <p class="category-description">${categoryData.description}</p>
+                </div>
+                <div class="services-grid">
+                    ${categoryData.services.map(service => createServiceCard(service, categoryData.color)).join('')}
+                </div>
+            `;
+
+            return categoryDiv;
+        }
+
+        // Create service card
+        function createServiceCard(service, categoryColor) {
+            return `
+                <div class="service-card" data-service="${service.id}" data-name="${service.name.toLowerCase()}" data-description="${service.description.toLowerCase()}">
+                    <span class="service-icon">${service.icon}</span>
+                    <h3 class="service-name">${service.name}</h3>
+                    <p class="service-description">${service.description}</p>
+                    <a href="${service.url}" class="service-link ${categoryColor}" target="_blank" rel="noopener noreferrer">
+                        <span>Open ${service.name}</span>
+                        <span>↗️</span>
+                    </a>
+                </div>
+            `;
+        }
+
+        // Setup search functionality
+        function setupSearch() {
+            const searchInput = document.getElementById('search-input');
+            let searchTimeout;
+
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    performSearch(e.target.value);
+                }, 300);
+            });
+
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchInput.value = '';
+                    performSearch('');
+                    searchInput.blur();
+                }
+            });
+        }
+
+        // Perform search
+        function performSearch(query) {
+            const trimmedQuery = query.trim().toLowerCase();
+            const serviceCards = document.querySelectorAll('.service-card');
+            const categories = document.querySelectorAll('.category');
+            const noResults = document.getElementById('no-results');
+            
+            let visibleCount = 0;
+
+            if (trimmedQuery === '') {
+                // Show all services
+                serviceCards.forEach(card => card.classList.remove('hidden'));
+                categories.forEach(category => category.classList.remove('hidden'));
+                noResults.classList.remove('show');
+                return;
+            }
+
+            // Filter services
+            serviceCards.forEach(card => {
+                const name = card.dataset.name;
+                const description = card.dataset.description;
+                const serviceId = card.dataset.service;
+
+                const matches = name.includes(trimmedQuery) || 
+                              description.includes(trimmedQuery) || 
+                              serviceId.includes(trimmedQuery);
+
+                if (matches) {
+                    card.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+
+            // Hide empty categories
+            categories.forEach(category => {
+                const visibleServices = category.querySelectorAll('.service-card:not(.hidden)');
+                if (visibleServices.length === 0) {
+                    category.classList.add('hidden');
+                } else {
+                    category.classList.remove('hidden');
+                }
+            });
+
+            // Show/hide no results message
+            if (visibleCount === 0) {
+                noResults.classList.add('show');
+            } else {
+                noResults.classList.remove('show');
+            }
+        }
+
+        // Setup keyboard shortcuts
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    document.getElementById('search-input').focus();
+                }
+            });
+        }
+
+        // Update statistics
+        function updateStats() {
+            const totalServices = Object.values(services).reduce((sum, category) => sum + category.services.length, 0);
+            const totalCategories = Object.keys(services).length;
+
+            document.getElementById('total-services').textContent = totalServices;
+            document.getElementById('total-categories').textContent = totalCategories;
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Update timestamp every minute
+        setInterval(() => {
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+        }, 60000);
+    </script>
+</body>
+</html>

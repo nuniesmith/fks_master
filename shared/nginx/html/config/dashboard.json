@@ -1,0 +1,197 @@
+{
+  "version": "2.1.1",
+  "name": "7Gram Network Dashboard", 
+  "description": "Fast and simple home services dashboard",
+  "lastUpdated": "2025-01-30T00:00:00Z",
+  "type": "simplified",
+  
+  "ui": {
+    "theme": "default",
+    "compactMode": false,
+    "animations": true,
+    "renderStrategy": "immediate",
+    "showLoadingStates": true,
+    "hideLoadingAfter": 2000,
+    "responsiveDesign": true,
+    "modernStyling": true
+  },
+  
+  "services": {
+    "healthCheckEnabled": false,
+    "fastInitialLoad": true,
+    "directRedirects": true,
+    "openInNewWindow": true,
+    "validateUrls": true,
+    "fallbackOnError": true
+  },
+  
+  "features": {
+    "search": {
+      "enabled": true,
+      "instant": true,
+      "minLength": 1,
+      "debounceMs": 300,
+      "caseSensitive": false,
+      "searchFields": ["name", "description", "category"],
+      "highlightResults": true,
+      "showSuggestions": false
+    },
+    "shortcuts": {
+      "enabled": true,
+      "searchKey": "k",
+      "themeToggleKey": "t",
+      "refreshKey": "r",
+      "helpKey": "?",
+      "escapeKey": "Escape"
+    },
+    "notifications": {
+      "enabled": true,
+      "position": "top-right",
+      "timeout": 3000,
+      "showSystemMessages": true,
+      "showErrors": true,
+      "maxVisible": 3
+    },
+    "categories": {
+      "collapsible": false,
+      "showServiceCount": true,
+      "defaultExpanded": true,
+      "sortAlphabetically": false
+    }
+  },
+  
+  "performance": {
+    "lazyLoadImages": false,
+    "cacheConfig": true,
+    "optimizeRendering": true,
+    "preloadCriticalAssets": true,
+    "minimizeReflows": true
+  },
+  
+  "accessibility": {
+    "keyboardNavigation": true,
+    "focusManagement": true,
+    "screenReaderOptimized": true,
+    "highContrastSupport": true,
+    "reducedMotionSupport": true,
+    "semanticMarkup": true
+  },
+  
+  "security": {
+    "validateUrls": true,
+    "sanitizeContent": true,
+    "allowHttps": true,
+    "allowHttp": true,
+    "trustedDomains": ["7gram.xyz", "*.7gram.xyz"],
+    "openExternalLinksSecurely": true
+  },
+  
+  "endpoints": {
+    "services": "services.json",
+    "themes": "config/themes.json",
+    "fallbackServices": "config/fallback-services.json"
+  },
+  
+  "loadingStrategy": {
+    "renderOrder": [
+      "header",
+      "search", 
+      "services",
+      "footer"
+    ],
+    "criticalFirst": true,
+    "showProgressIndicator": false,
+    "gracefulErrorHandling": true
+  },
+  
+  "serviceCategories": {
+    "loadOrder": [
+      "Media Services",
+      "AI Services",
+      "Media Management", 
+      "System Services"
+    ],
+    "showIcons": true,
+    "showDescriptions": true,
+    "showServiceCount": true,
+    "customColors": true
+  },
+  
+  "customization": {
+    "allowThemeOverride": true,
+    "persistPreferences": true,
+    "defaultTheme": "default",
+    "availableThemes": ["default", "dark", "compact", "high-contrast"],
+    "syncAcrossDevices": false
+  },
+  
+  "errorHandling": {
+    "showUserFriendlyErrors": true,
+    "fallbackToBasicView": true,
+    "retryFailedRequests": true,
+    "maxRetries": 2,
+    "logErrors": true
+  },
+  
+  "layout": {
+    "maxWidth": "1400px",
+    "cardMinWidth": "280px",
+    "gridGap": "20px",
+    "categorySpacing": "30px",
+    "headerHeight": "auto",
+    "footerHeight": "auto"
+  },
+  
+  "branding": {
+    "title": "7Gram Network Dashboard",
+    "subtitle": "Your complete home services ecosystem",
+    "logo": "🏠",
+    "favicon": "/favicon.ico",
+    "showVersion": true,
+    "customFooter": true
+  },
+  
+  "development": {
+    "debugMode": false,
+    "verboseLogging": false,
+    "showPerformanceMetrics": false,
+    "enableTestMode": false
+  },
+  
+  "defaults": {
+    "service": {
+      "openInNewWindow": true,
+      "icon": "🔗",
+      "category": "System Services",
+      "description": "Service description not available"
+    },
+    "category": {
+      "icon": "📦",
+      "color": "default",
+      "description": "Service category"
+    }
+  },
+  
+  "integrations": {
+    "nginx": {
+      "enabled": true,
+      "proxyRedirects": true,
+      "preserveHeaders": true
+    },
+    "serviceWorker": {
+      "enabled": true,
+      "cacheStrategy": "networkFirst",
+      "offlineSupport": true
+    },
+    "pwa": {
+      "enabled": true,
+      "installPrompt": true,
+      "appIcons": true
+    }
+  },
+  
+  "experimental": {
+    "enabled": false,
+    "features": []
+  }
+}

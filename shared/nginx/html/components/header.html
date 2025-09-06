@@ -1,0 +1,42 @@
+<div class="dashboard-header">
+    <h1>🏠 {{title}}</h1>
+    <p class="subtitle">{{subtitle}}</p>
+    
+    {{#if showSearch}}
+    <div class="search-container">
+        <input type="text" 
+               id="search-input" 
+               class="search-input" 
+               placeholder="{{searchPlaceholder}}" 
+               aria-label="Search services">
+        <div class="search-suggestions" id="search-suggestions" style="display: none;">
+            <!-- Dynamic search suggestions will be inserted here -->
+        </div>
+    </div>
+    {{/if}}
+    
+    {{#if showStats}}
+    <div class="dashboard-stats">
+        <div class="stat-item">
+            <span class="stat-number">{{serviceCount}}</span>
+            <span class="stat-label">Services</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number">{{categoryCount}}</span>
+            <span class="stat-label">Categories</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number status-indicator"></span>
+            <span class="stat-label">Online</span>
+        </div>
+    </div>
+    {{/if}}
+    
+    {{#if showThemeToggle}}
+    <div class="theme-controls">
+        <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Dark Mode">
+            🌙
+        </button>
+    </div>
+    {{/if}}
+</div>

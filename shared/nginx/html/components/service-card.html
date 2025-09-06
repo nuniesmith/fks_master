@@ -1,0 +1,131 @@
+<div class="card" data-service="{{id}}" data-category="{{category}}">
+    <div class="card-header">
+        <h3 class="card-title">{{name}}</h3>
+        {{#if showStatus}}
+        <span class="service-status {{statusClass}}" title="Service Status: {{status}}">
+            {{statusIcon}}
+        </span>
+        {{/if}}
+    </div>
+    
+    <p class="card-description">{{description}}</p>
+    
+    {{#if showMeta}}
+    <div class="card-meta">
+        {{#if type}}
+        <span class="service-type">{{type}}</span>
+        {{/if}}
+        
+        {{#if version}}
+        <span class="service-version">v{{version}}</span>
+        {{/if}}
+        
+        {{#if tags}}
+        {{#each tags}}
+        <span class="service-tag">#{{this}}</span>
+        {{/each}}
+        {{/if}}
+    </div>
+    {{/if}}
+    
+    {{#if showHealth}}
+    <div class="health-indicator">
+        <div class="health-dot {{healthStatus}}"></div>
+        <span class="health-text">{{healthText}}</span>
+        {{#if responseTime}}
+        <span class="response-time">{{responseTime}}ms</span>
+        {{/if}}
+    </div>
+    {{/if}}
+    
+    {{#if showLastUsed}}
+    <div class="usage-info">
+        <small class="last-used">
+            {{#if lastUsed}}
+            Last used: {{lastUsed}}
+            {{else}}
+            Never used
+            {{/if}}
+        </small>
+        {{#if usageCount}}
+        <small class="usage-count">{{usageCount}} uses</small>
+        {{/if}}
+    </div>
+    {{/if}}
+    
+    <div class="card-actions">
+        <a href="{{url}}" 
+           class="card-link {{categoryClass}}" 
+           target="_blank" 
+           rel="noopener noreferrer"
+           data-service-id="{{id}}"
+           {{#if analyticsTrack}}data-track="service-click"{{/if}}>
+            {{icon}} {{buttonText}}
+        </a>
+        
+        {{#if showQuickActions}}
+        <div class="quick-actions">
+            {{#if canFavorite}}
+            <button class="quick-action favorite-btn" 
+                    data-service-id="{{id}}" 
+                    data-action="toggle-favorite"
+                    title="{{#if isFavorite}}Remove from favorites{{else}}Add to favorites{{/if}}">
+                {{#if isFavorite}}⭐{{else}}☆{{/if}}
+            </button>
+            {{/if}}
+            
+            {{#if canPin}}
+            <button class="quick-action pin-btn" 
+                    data-service-id="{{id}}" 
+                    data-action="toggle-pin"
+                    title="{{#if isPinned}}Unpin service{{else}}Pin to top{{/if}}">
+                {{#if isPinned}}📌{{else}}📍{{/if}}
+            </button>
+            {{/if}}
+            
+            {{#if showInfo}}
+            <button class="quick-action info-btn" 
+                    data-service-id="{{id}}" 
+                    data-action="show-info"
+                    title="Service information">
+                ℹ️
+            </button>
+            {{/if}}
+        </div>
+        {{/if}}
+    </div>
+    
+    {{#if showDetails}}
+    <div class="service-details" style="display: none;">
+        {{#if dockerContainer}}
+        <div class="detail-item">
+            <strong>Container:</strong> {{dockerContainer}}
+        </div>
+        {{/if}}
+        
+        {{#if port}}
+        <div class="detail-item">
+            <strong>Port:</strong> {{port}}
+        </div>
+        {{/if}}
+        
+        {{#if documentation}}
+        <div class="detail-item">
+            <strong>Docs:</strong> 
+            <a href="{{documentation}}" target="_blank" rel="noopener noreferrer">
+                📚 Documentation
+            </a>
+        </div>
+        {{/if}}
+        
+        {{#if repository}}
+        <div class="detail-item">
+            <strong>Source:</strong> 
+            <a href="{{repository}}" target="_blank" rel="noopener noreferrer">
+                🔗 Repository
+            </a>
+        </div>
+        {{/if}}
+    </div>
+    {{/if}}
+</div>

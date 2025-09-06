@@ -1,0 +1,18 @@
+{
+  "symbol": "SPY",
+  "years": 5,
+  "horizon": 5,
+  "seq_len": 64,
+  "epochs": 5,
+  "lr": 0.001,
+  "patience": 3,
+  "hmm_states": 3,
+  "cost_bps": 2,
+  "model": {
+    "d_model": 128,
+    "nhead": 8,
+    "num_layers": 2,
+    "dim_feedforward": 256,
+    "dropout": 0.1
+  }
+}

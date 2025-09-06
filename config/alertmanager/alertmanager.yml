@@ -1,0 +1,14 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'null'
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  group_by: ['alertname', 'service']
+
+receivers:
+  - name: 'null'
+
+# Add real notification integrations (email, Slack, PagerDuty) later.

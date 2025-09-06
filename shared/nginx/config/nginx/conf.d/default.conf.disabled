@@ -1,0 +1,23 @@
+# Temporary HTTP-only configuration for initial SSL certificate generation
+server {
+    listen 80;
+    listen [::]:80;
+    server_name 7gram.xyz;
+
+    # Health check endpoint
+    location = /health {
+        return 200 '{"status":"healthy","timestamp":"$time_iso8601"}\n';
+        add_header Content-Type application/json;
+    }
+
+    # Let's Encrypt challenge location
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        try_files $uri =404;
+    }
+
+    # Redirect all other traffic to HTTPS once certificates are available
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}

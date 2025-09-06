@@ -1,0 +1,17 @@
+[Unit]
+Description=Nginx SSL Certificate Renewal Timer
+Documentation=https://github.com/nuniesmith/nginx
+Requires=nginx-ssl-manager.service
+
+[Timer]
+# Run twice daily at 2:00 AM and 2:00 PM
+OnCalendar=*-*-* 02,14:00:00
+# Add randomization to prevent all servers renewing at same time
+RandomizedDelaySec=3600
+# Run immediately if the system was powered off during scheduled time
+Persistent=true
+# Prevent accumulation of missed runs
+AccuracySec=1h
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+# cargo-deny configuration for fks_master
+
+[advisories]
+# Fail on vulnerabilities except unmaintained (warn) and yanked (deny)
+denies = ["vulnerability", "unsound", "yanked"]
+# Allow warnings for unmaintained crates (temporary)
+warns = ["unmaintained"]
+# Ignore specific advisories (example placeholder)
+ignore = []
+
+[licenses]
+# Allow explicit set; MIT and Apache-2.0 typical. Add others if needed.
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Apache-2.0 WITH LLVM-exception"]
+denied = []
+# Require SPDX expressions
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+# Example of skipping certain crates from duplicate version check
+skip = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# Allow crates.io
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

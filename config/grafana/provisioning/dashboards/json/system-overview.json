@@ -1,0 +1,104 @@
+{
+  "id": null,
+  "uid": "fks-sys-overview",
+  "title": "FKS System Overview",
+  "tags": ["fks", "overview"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "row",
+      "title": "API / Engine Latency",
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":0}
+    },
+    {
+      "type": "graph",
+      "title": "API Request Duration (p95)",
+      "gridPos": {"h":8,"w":12,"x":0,"y":1},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job='python-services',service='api'}[5m])) by (le))", "legendFormat": "p95"}
+      ],
+      "yaxes": [{"format": "s"},{"format": "short"}]
+    },
+    {
+      "type": "graph",
+      "title": "Engine Processing Duration (p95)",
+      "gridPos": {"h":8,"w":12,"x":12,"y":1},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(task_processing_seconds_bucket{job='python-services',service='engine'}[5m])) by (le))", "legendFormat": "p95"}
+      ],
+      "yaxes": [{"format": "s"},{"format": "short"}]
+    },
+    {
+      "type": "row",
+      "title": "Service Health",
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":9}
+    },
+    {
+      "type": "graph",
+      "title": "Compose Action Duration (p95)",
+      "gridPos": {"h":8, "w":12, "x":0, "y":10},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(fks_compose_action_duration_seconds_bucket[5m])) by (le,action))", "legendFormat": "{{action}} p95"}
+      ],
+      "yaxes": [{"format": "s"},{"format": "short"}]
+    },
+    {
+      "type": "graph",
+      "title": "Service Restart Duration (p95)",
+      "gridPos": {"h":8, "w":12, "x":12, "y":10},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(fks_service_restart_duration_seconds_bucket[5m])) by (le,service))", "legendFormat": "{{service}} p95"}
+      ],
+      "yaxes": [{"format": "s"},{"format": "short"}]
+    },
+    {
+      "type": "stat",
+      "title": "Up - API",
+  "gridPos": {"h":4,"w":4,"x":0,"y":18},
+      "targets": [
+        {"expr": "up{job='python-services', instance='api:8000'}", "legendFormat": "api"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Up - Data",
+  "gridPos": {"h":4,"w":4,"x":4,"y":18},
+      "targets": [
+        {"expr": "up{job='python-services', instance='data:9001'}", "legendFormat": "data"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Up - Engine",
+  "gridPos": {"h":4,"w":4,"x":8,"y":18},
+      "targets": [
+        {"expr": "up{job='python-services', instance='engine:9010'}", "legendFormat": "engine"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Up - Transformer",
+  "gridPos": {"h":4,"w":4,"x":12,"y":18},
+      "targets": [
+        {"expr": "up{job='python-services', instance='transformer:8089'}", "legendFormat": "transformer"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Up - TimescaleDB",
+  "gridPos": {"h":4,"w":4,"x":16,"y":18},
+      "targets": [
+        {"expr": "up{job='postgres-exporter'}", "legendFormat": "timescaledb"}
+      ]
+    }
+  ],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "annotations": {"list": []}
+}

@@ -1,0 +1,239 @@
+{
+  "category": "Media Services",
+  "icon": "🎬",
+  "color": "media",
+  "description": "Streaming and media management services for your entertainment needs",
+  "priority": 1,
+  "services": [
+    {
+      "id": "emby",
+      "name": "Emby",
+      "description": "Premium media server for movies, TV shows, and music with advanced features",
+      "url": "https://emby.7gram.xyz",
+      "icon": "🎬",
+      "type": "Media Server",
+      "version": "4.8.8",
+      "buttonText": "🎬 Open Emby",
+      "priority": 10,
+      "tags": ["media", "streaming", "movies", "tv", "music"],
+      "healthCheck": {
+        "url": "https://emby.7gram.xyz/health",
+        "method": "GET",
+        "timeout": 5000,
+        "expectedStatus": [200, 301]
+      },
+      "features": [
+        "4K Streaming",
+        "Mobile Apps",
+        "Live TV",
+        "DVR",
+        "Parental Controls"
+      ],
+      "documentation": "https://emby.media/support",
+      "repository": "https://github.com/MediaBrowser/Emby",
+      "dockerContainer": "emby/embyserver",
+      "port": 8096
+    },
+    {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "description": "Free and open-source media server alternative with no licensing restrictions",
+      "url": "https://jellyfin.7gram.xyz",
+      "icon": "📺",
+      "type": "Media Server",
+      "version": "10.8.13",
+      "buttonText": "📺 Open Jellyfin",
+      "priority": 9,
+      "tags": ["media", "streaming", "opensource", "free"],
+      "healthCheck": "https://jellyfin.7gram.xyz/health",
+      "features": [
+        "Open Source",
+        "No Premium Features",
+        "Mobile Apps", 
+        "Live TV",
+        "Hardware Acceleration"
+      ],
+      "documentation": "https://jellyfin.org/docs/",
+      "repository": "https://github.com/jellyfin/jellyfin",
+      "dockerContainer": "jellyfin/jellyfin",
+      "port": 8096
+    },
+    {
+      "id": "plex",
+      "name": "Plex",
+      "description": "Popular streaming media server with extensive ecosystem and features",
+      "url": "https://plex.7gram.xyz",
+      "icon": "🍿",
+      "type": "Media Server", 
+      "version": "1.40.1",
+      "buttonText": "🍿 Open Plex",
+      "priority": 8,
+      "tags": ["media", "streaming", "plex", "ecosystem"],
+      "healthCheck": {
+        "url": "https://plex.7gram.xyz/web",
+        "method": "HEAD",
+        "timeout": 8000
+      },
+      "features": [
+        "Plex Pass Premium",
+        "Mobile Sync",
+        "Live TV & DVR",
+        "Music Services",
+        "Podcast Support"
+      ],
+      "documentation": "https://support.plex.tv/",
+      "repository": "https://www.plex.tv/",
+      "dockerContainer": "plexinc/pms-docker",
+      "port": 32400
+    },
+    {
+      "id": "audiobookshelf",
+      "name": "Audiobookshelf",
+      "description": "Self-hosted audiobook and podcast server with mobile apps",
+      "url": "https://abs.7gram.xyz",
+      "icon": "🎧",
+      "type": "Audiobook Server",
+      "version": "2.8.1",
+      "buttonText": "🎧 Open Audiobookshelf",
+      "priority": 7,
+      "tags": ["audiobooks", "podcasts", "media", "mobile"],
+      "healthCheck": "https://abs.7gram.xyz/api/ping",
+      "features": [
+        "Audiobook Library",
+        "Podcast Management",
+        "Progress Sync",
+        "Mobile Apps",
+        "Sleep Timer"
+      ],
+      "documentation": "https://www.audiobookshelf.org/docs",
+      "repository": "https://github.com/advplyr/audiobookshelf",
+      "dockerContainer": "ghcr.io/advplyr/audiobookshelf",
+      "port": 13378
+    },
+    {
+      "id": "calibre-web",
+      "name": "Calibre Web",
+      "description": "Clean web interface for your Calibre e-book library with reading features",
+      "url": "https://calibreweb.7gram.xyz",
+      "icon": "📖",
+      "type": "E-book Server",
+      "version": "0.6.21",
+      "buttonText": "📖 Open Calibre Web",
+      "priority": 6,
+      "tags": ["ebooks", "calibre", "reading", "library"],
+      "healthCheck": "https://calibreweb.7gram.xyz/login",
+      "features": [
+        "Web Reader",
+        "Format Conversion",
+        "User Management",
+        "Goodreads Integration",
+        "OPDS Support"
+      ],
+      "documentation": "https://github.com/janeczku/calibre-web/wiki",
+      "repository": "https://github.com/janeczku/calibre-web",
+      "dockerContainer": "lscr.io/linuxserver/calibre-web",
+      "port": 8083
+    },
+    {
+      "id": "youtube-dl",
+      "name": "YouTube Downloader",
+      "description": "Download and manage videos from YouTube and 1000+ other platforms",
+      "url": "https://youtube.7gram.xyz",
+      "icon": "📱",
+      "type": "Downloader",
+      "version": "2.4.0",
+      "buttonText": "📱 YouTube Downloader",
+      "priority": 5,
+      "tags": ["youtube", "download", "video", "converter"],
+      "healthCheck": "https://youtube.7gram.xyz/api/info",
+      "features": [
+        "1000+ Sites Supported",
+        "Format Selection",
+        "Batch Downloads",
+        "Audio Extraction",
+        "Playlist Support"
+      ],
+      "documentation": "https://github.com/yt-dlp/yt-dlp",
+      "repository": "https://github.com/Tzahi12345/YoutubeDL-Material",
+      "dockerContainer": "tzahi12345/youtubedl-material",
+      "port": 17442
+    },
+    {
+      "id": "navidrome",
+      "name": "Navidrome",
+      "description": "Modern music server and streamer compatible with Subsonic/Airsonic",
+      "url": "https://music.7gram.xyz",
+      "icon": "🎵",
+      "type": "Music Server",
+      "version": "0.50.2",
+      "buttonText": "🎵 Open Navidrome",
+      "priority": 4,
+      "tags": ["music", "streaming", "subsonic", "airsonic"],
+      "healthCheck": "https://music.7gram.xyz/ping",
+      "features": [
+        "Subsonic Compatible",
+        "Last.fm Scrobbling",
+        "Smart Playlists",
+        "Multi-User",
+        "Mobile Apps"
+      ],
+      "documentation": "https://www.navidrome.org/docs/",
+      "repository": "https://github.com/navidrome/navidrome",
+      "dockerContainer": "deluan/navidrome",
+      "port": 4533
+    }
+  ],
+  "integrations": {
+    "homeAssistant": {
+      "enabled": true,
+      "entities": [
+        "media_player.emby",
+        "media_player.plex"
+      ]
+    },
+    "monitoring": {
+      "prometheus": true,
+      "grafana": true
+    }
+  },
+  "troubleshooting": {
+    "commonIssues": [
+      {
+        "issue": "Service not accessible",
+        "solutions": [
+          "Check if Docker container is running",
+          "Verify port forwarding",
+          "Check firewall settings",
+          "Confirm reverse proxy configuration"
+        ]
+      },
+      {
+        "issue": "Slow streaming",
+        "solutions": [
+          "Check network bandwidth",
+          "Verify hardware transcoding",
+          "Optimize media bitrates",
+          "Check storage performance"
+        ]
+      }
+    ],
+    "logs": {
+      "emby": "/var/lib/emby/logs/",
+      "jellyfin": "/var/log/jellyfin/",
+      "plex": "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Logs/"
+    }
+  },
+  "backups": {
+    "recommended": [
+      "Configuration files",
+      "Database backups",
+      "User preferences",
+      "Custom artwork"
+    ],
+    "exclude": [
+      "Cache directories",
+      "Temporary files",
+      "Media files (unless specifically needed)"
+    ]
+  }
+}

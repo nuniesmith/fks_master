@@ -1,0 +1,33 @@
+[Unit]
+Description=Nginx SSL Certificate Manager
+Documentation=https://github.com/nuniesmith/nginx
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/nginx
+Environment=DOMAIN_NAME=nginx.7gram.xyz
+Environment=LETSENCRYPT_EMAIL=admin@7gram.xyz
+EnvironmentFile=-/opt/nginx/.env
+ExecStart=/opt/nginx/scripts/ssl-manager.sh renew
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/nginx /var/log /tmp
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

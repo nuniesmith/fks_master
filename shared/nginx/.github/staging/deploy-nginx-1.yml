@@ -1,0 +1,774 @@
+# .github/workflows/deploy-nginx.yml
+# Enhanced GitHub Actions workflow for 7gram.xyz nginx deployment
+# Version: 2.0.0
+
+name: Deploy to 7gram.xyz
+
+on:
+  # Trigger on push to main/master
+  push:
+    branches: [ main ]
+    paths:
+      - 'config/nginx/**'
+      - 'html/**'
+      - 'public/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+  
+  # Pull request validation
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+  
+  # Manual deployment with options
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      deployment_type:
+        description: 'Deployment type'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - standard
+          - rollback
+          - emergency
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        required: false
+        default: false
+        type: boolean
+      skip_backup:
+        description: 'Skip backup (not recommended)'
+        required: false
+        default: false
+        type: boolean
+      custom_tag:
+        description: 'Custom version tag'
+        required: false
+        type: string
+
+# Environment variables
+env:
+  # Server configuration
+  PRODUCTION_HOST: nginx.7gram.xyz
+  STAGING_HOST: staging.7gram.xyz
+  PRODUCTION_IP: ${{ secrets.PRODUCTION_IP }}
+  STAGING_IP: ${{ secrets.STAGING_IP }}
+  
+  # Paths
+  DEPLOY_PATH: /opt/nginx-deployment
+  BACKUP_PATH: /opt/backups
+  NGINX_CONFIG_PATH: /etc/nginx
+  WEB_ROOT_PATH: /var/www/html
+  
+  # Docker configuration
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+  
+  # Monitoring
+  HEALTH_CHECK_TIMEOUT: 60
+  HEALTH_CHECK_INTERVAL: 5
+  
+  # Notifications
+  ENABLE_NOTIFICATIONS: true
+
+# Concurrency control
+concurrency:
+  group: deployment-${{ github.ref }}-${{ github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # CONFIGURATION AND SETUP
+  # ============================================================================
+  setup:
+    name: Setup and Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.config.outputs.environment }}
+      version: ${{ steps.version.outputs.version }}
+      deployment_id: ${{ steps.deployment.outputs.id }}
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for version calculation
+      
+      - name: Configure deployment
+        id: config
+        run: |
+          # Determine environment
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ENVIRONMENT="development"
+          elif [[ "${{ github.event.inputs.environment }}" != "" ]]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            ENVIRONMENT="production"
+          else
+            ENVIRONMENT="staging"
+          fi
+          
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "🚀 Deployment environment: $ENVIRONMENT"
+      
+      - name: Generate version
+        id: version
+        run: |
+          # Generate semantic version
+          if [[ -n "${{ github.event.inputs.custom_tag }}" ]]; then
+            VERSION="${{ github.event.inputs.custom_tag }}"
+          else
+            # Get latest tag
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            
+            # Calculate next version
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              # Increment patch version
+              VERSION=$(echo $LATEST_TAG | awk -F. '{print $1"."$2"."($3+1)}')
+            else
+              # Use commit SHA for non-release builds
+              VERSION="${LATEST_TAG}-${GITHUB_SHA::8}"
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+      
+      - name: Generate deployment ID
+        id: deployment
+        run: |
+          DEPLOYMENT_ID="${{ steps.config.outputs.environment }}-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::8}"
+          echo "id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+          echo "🔖 Deployment ID: $DEPLOYMENT_ID"
+      
+      - name: Check if deployment needed
+        id: check
+        run: |
+          # Check if we should deploy
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping deployment for pull request"
+          else
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ Deployment will proceed"
+          fi
+
+  # ============================================================================
+  # SECURITY SCANNING
+  # ============================================================================
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.skip_tests != 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+      
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: '7gram-nginx'
+          path: '.'
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+      
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ============================================================================
+  # BUILD AND TEST
+  # ============================================================================
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: [setup, security]
+    if: github.event.inputs.skip_tests != 'true'
+    
+    strategy:
+      matrix:
+        test-suite: [unit, integration, performance]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g html-validate lighthouse
+      
+      - name: Run linting
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint || true
+          
+          echo "🔍 Running HTML validation..."
+          find . -name "*.html" -not -path "./node_modules/*" -exec html-validate {} \;
+      
+      - name: Run tests - ${{ matrix.test-suite }}
+        run: |
+          case "${{ matrix.test-suite }}" in
+            unit)
+              echo "🧪 Running unit tests..."
+              npm run test:unit || echo "No unit tests configured"
+              ;;
+            integration)
+              echo "🧪 Running integration tests..."
+              # Start test nginx container
+              docker run -d --name test-nginx \
+                -v $PWD/config/nginx:/etc/nginx:ro \
+                -v $PWD/html:/usr/share/nginx/html:ro \
+                -p 8080:80 \
+                nginx:alpine
+              
+              # Wait for nginx to start
+              sleep 5
+              
+              # Run integration tests
+              npm run test:integration || echo "No integration tests configured"
+              
+              # Test endpoints
+              curl -f http://localhost:8080/ || exit 1
+              curl -f http://localhost:8080/health || exit 1
+              ;;
+            performance)
+              echo "🧪 Running performance tests..."
+              # Run Lighthouse CI
+              npm install -g @lhci/cli
+              lhci autorun || echo "Lighthouse tests skipped"
+              ;;
+          esac
+      
+      - name: Build Docker image
+        run: |
+          echo "🐳 Building Docker image..."
+          docker build \
+            --build-arg VERSION=${{ needs.setup.outputs.version }} \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VCS_REF=${GITHUB_SHA} \
+            -t ${{ env.DOCKER_IMAGE }}:${{ needs.setup.outputs.version }} \
+            -t ${{ env.DOCKER_IMAGE }}:latest \
+            .
+      
+      - name: Test Docker image
+        run: |
+          echo "🧪 Testing Docker image..."
+          docker run -d --name test-container \
+            -p 8081:80 \
+            ${{ env.DOCKER_IMAGE }}:${{ needs.setup.outputs.version }}
+          
+          sleep 5
+          
+          # Health check
+          curl -f http://localhost:8081/health || exit 1
+          
+          # Check logs
+          docker logs test-container
+      
+      - name: Push to registry
+        if: needs.setup.outputs.should_deploy == 'true'
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.DOCKER_REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          docker push ${{ env.DOCKER_IMAGE }}:${{ needs.setup.outputs.version }}
+          
+          if [[ "${{ needs.setup.outputs.environment }}" == "production" ]]; then
+            docker push ${{ env.DOCKER_IMAGE }}:latest
+          fi
+
+  # ============================================================================
+  # STAGING DEPLOYMENT
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: |
+      needs.setup.outputs.should_deploy == 'true' &&
+      (needs.setup.outputs.environment == 'staging' || needs.setup.outputs.environment == 'production')
+    environment:
+      name: staging
+      url: https://staging.7gram.xyz
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.STAGING_IP }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying to staging environment..."
+          
+          # Create deployment script
+          cat > deploy-staging.sh << 'EOF'
+          #!/bin/bash
+          set -euo pipefail
+          
+          DEPLOYMENT_ID="${{ needs.setup.outputs.deployment_id }}"
+          VERSION="${{ needs.setup.outputs.version }}"
+          
+          echo "🚀 Starting staging deployment: $DEPLOYMENT_ID"
+          
+          # Run deployment
+          cd ${{ env.DEPLOY_PATH }}
+          ./deploy.sh deploy staging $VERSION
+          
+          echo "✅ Staging deployment completed"
+          EOF
+          
+          # Execute deployment
+          scp deploy-staging.sh ${{ secrets.SSH_USER }}@${{ secrets.STAGING_IP }}:/tmp/
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.STAGING_IP }} "bash /tmp/deploy-staging.sh"
+      
+      - name: Run staging tests
+        run: |
+          echo "🧪 Running staging tests..."
+          
+          # Wait for deployment to stabilize
+          sleep 30
+          
+          # Run smoke tests
+          ./scripts/smoke-tests.sh https://staging.7gram.xyz
+          
+          # Run E2E tests
+          npm run test:e2e:staging || echo "E2E tests not configured"
+      
+      - name: Performance testing
+        run: |
+          echo "⚡ Running performance tests..."
+          
+          # Run k6 load tests
+          docker run --rm \
+            -v $PWD/tests/k6:/scripts \
+            grafana/k6 run /scripts/load-test.js \
+            --env BASE_URL=https://staging.7gram.xyz
+
+  # ============================================================================
+  # PRODUCTION DEPLOYMENT
+  # ============================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [setup, build, deploy-staging]
+    if: |
+      needs.setup.outputs.should_deploy == 'true' &&
+      needs.setup.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://7gram.xyz
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Create GitHub deployment
+        uses: chrnorm/deployment-action@v2
+        id: deployment
+        with:
+          token: ${{ github.token }}
+          environment: production
+          ref: ${{ github.sha }}
+          description: "Deploy version ${{ needs.setup.outputs.version }}"
+      
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.PRODUCTION_IP }} >> ~/.ssh/known_hosts
+      
+      - name: Pre-deployment backup
+        if: github.event.inputs.skip_backup != 'true'
+        run: |
+          echo "💾 Creating pre-deployment backup..."
+          
+          ssh ${{ secrets.SSH_USER }}@${{ env.PRODUCTION_IP }} "
+            cd /opt/backups
+            ./backup.sh pre-deploy-${{ needs.setup.outputs.deployment_id }}
+          "
+      
+      - name: Blue-Green Deployment
+        run: |
+          echo "🔄 Starting blue-green deployment..."
+          
+          # Create deployment script
+          cat > deploy-production.sh << 'EOF'
+          #!/bin/bash
+          set -euo pipefail
+          
+          DEPLOYMENT_ID="${{ needs.setup.outputs.deployment_id }}"
+          VERSION="${{ needs.setup.outputs.version }}"
+          
+          echo "🚀 Starting production deployment: $DEPLOYMENT_ID"
+          
+          # Blue-green deployment
+          cd ${{ env.DEPLOY_PATH }}
+          
+          # Deploy to inactive slot
+          ./deploy.sh deploy-blue-green $VERSION
+          
+          # Verify inactive slot
+          if ! ./deploy.sh verify-inactive; then
+            echo "❌ Inactive slot verification failed"
+            exit 1
+          fi
+          
+          # Switch traffic
+          ./deploy.sh switch-traffic
+          
+          # Verify active slot
+          if ! ./deploy.sh verify-active; then
+            echo "❌ Active slot verification failed, rolling back"
+            ./deploy.sh switch-traffic rollback
+            exit 1
+          fi
+          
+          echo "✅ Blue-green deployment completed"
+          EOF
+          
+          # Execute deployment
+          scp deploy-production.sh ${{ secrets.SSH_USER }}@${{ env.PRODUCTION_IP }}:/tmp/
+          ssh ${{ secrets.SSH_USER }}@${{ env.PRODUCTION_IP }} "bash /tmp/deploy-production.sh"
+      
+      - name: Health monitoring
+        run: |
+          echo "🏥 Monitoring deployment health..."
+          
+          # Monitor for 5 minutes
+          END_TIME=$(($(date +%s) + 300))
+          FAILURES=0
+          MAX_FAILURES=3
+          
+          while [ $(date +%s) -lt $END_TIME ]; do
+            if ! curl -sf https://7gram.xyz/health > /dev/null; then
+              FAILURES=$((FAILURES + 1))
+              echo "⚠️ Health check failed ($FAILURES/$MAX_FAILURES)"
+              
+              if [ $FAILURES -ge $MAX_FAILURES ]; then
+                echo "❌ Too many health check failures, triggering rollback"
+                ssh ${{ secrets.SSH_USER }}@${{ env.PRODUCTION_IP }} "cd ${{ env.DEPLOY_PATH }} && ./deploy.sh rollback"
+                exit 1
+              fi
+            else
+              FAILURES=0
+              echo "✅ Health check passed"
+            fi
+            
+            sleep ${{ env.HEALTH_CHECK_INTERVAL }}
+          done
+      
+      - name: Update deployment status
+        if: always()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: ${{ job.status }}
+          environment-url: https://7gram.xyz
+
+  # ============================================================================
+  # POST-DEPLOYMENT
+  # ============================================================================
+  post-deployment:
+    name: Post-Deployment Tasks
+    runs-on: ubuntu-latest
+    needs: [setup, deploy-production]
+    if: always() && needs.deploy-production.result != 'skipped'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Cache warming
+        if: needs.deploy-production.result == 'success'
+        run: |
+          echo "🔥 Warming caches..."
+          
+          # List of URLs to warm
+          URLS=(
+            "https://7gram.xyz/"
+            "https://7gram.xyz/health"
+            "https://emby.7gram.xyz/"
+            "https://jellyfin.7gram.xyz/"
+            "https://ai.7gram.xyz/"
+          )
+          
+          for url in "${URLS[@]}"; do
+            curl -sf "$url" > /dev/null || echo "⚠️ Failed to warm: $url"
+          done
+      
+      - name: Run synthetic monitoring
+        if: needs.deploy-production.result == 'success'
+        run: |
+          echo "🔍 Running synthetic monitoring..."
+          
+          # Create monitoring script
+          cat > monitor.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          
+          async function monitor() {
+            const browser = await puppeteer.launch();
+            const page = await browser.newPage();
+            
+            // Test main dashboard
+            await page.goto('https://7gram.xyz');
+            await page.waitForSelector('.service-card', { timeout: 10000 });
+            
+            // Test search
+            await page.type('#search-input', 'emby');
+            await page.waitForTimeout(1000);
+            
+            // Take screenshot
+            await page.screenshot({ path: 'dashboard.png' });
+            
+            await browser.close();
+          }
+          
+          monitor().catch(console.error);
+          EOF
+          
+          npm install puppeteer
+          node monitor.js
+      
+      - name: Update documentation
+        if: needs.deploy-production.result == 'success'
+        run: |
+          echo "📝 Updating deployment documentation..."
+          
+          # Update CHANGELOG
+          cat >> CHANGELOG.md << EOF
+          
+          ## [${{ needs.setup.outputs.version }}] - $(date +%Y-%m-%d)
+          
+          ### Deployment
+          - Environment: ${{ needs.setup.outputs.environment }}
+          - Deployment ID: ${{ needs.setup.outputs.deployment_id }}
+          - Commit: ${{ github.sha }}
+          - Deployed by: ${{ github.actor }}
+          
+          ### Changes
+          $(git log --pretty=format:"- %s" HEAD~10..HEAD)
+          EOF
+          
+          # Commit if there are changes
+          if [[ -n $(git status -s) ]]; then
+            git config user.name "GitHub Actions"
+            git config user.email "actions_user@github.com"
+            git add CHANGELOG.md
+            git commit -m "Update CHANGELOG for ${{ needs.setup.outputs.version }}"
+            git push
+          fi
+
+  # ============================================================================
+  # NOTIFICATIONS
+  # ============================================================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [setup, security, build, deploy-staging, deploy-production, post-deployment]
+    if: always() && env.ENABLE_NOTIFICATIONS == 'true'
+    
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          # Determine overall status
+          if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+            STATUS="success"
+            COLOR="3066993"
+            EMOJI="✅"
+          elif [[ "${{ needs.deploy-production.result }}" == "failure" ]]; then
+            STATUS="failure"
+            COLOR="15158332"
+            EMOJI="❌"
+          elif [[ "${{ needs.build.result }}" == "failure" ]]; then
+            STATUS="build_failed"
+            COLOR="16776960"
+            EMOJI="🔨"
+          else
+            STATUS="skipped"
+            COLOR="3447003"
+            EMOJI="⏭️"
+          fi
+          
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          echo "emoji=$EMOJI" >> $GITHUB_OUTPUT
+      
+      - name: Discord notification
+        if: env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Create rich embed
+          curl -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.status }}",
+                "color": ${{ steps.status.outputs.color }},
+                "fields": [
+                  {
+                    "name": "Environment",
+                    "value": "${{ needs.setup.outputs.environment }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Version",
+                    "value": "${{ needs.setup.outputs.version }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Deployment ID",
+                    "value": "`${{ needs.setup.outputs.deployment_id }}`",
+                    "inline": false
+                  },
+                  {
+                    "name": "Commit",
+                    "value": "[`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})",
+                    "inline": true
+                  },
+                  {
+                    "name": "Actor",
+                    "value": "${{ github.actor }}",
+                    "inline": true
+                  }
+                ],
+                "footer": {
+                  "text": "7gram Dashboard Deployment",
+                  "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+                },
+                "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              }]
+            }' \
+            "$DISCORD_WEBHOOK_URL"
+      
+      - name: Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.status }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\n${{ needs.setup.outputs.environment }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version:*\n${{ needs.setup.outputs.version }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Deployment ID: `${{ needs.setup.outputs.deployment_id }}`"
+                    }
+                  ]
+                }
+              ]
+            }' \
+            "$SLACK_WEBHOOK_URL"
+      
+      - name: Create deployment summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          # Deployment Summary
+          
+          **Status:** ${{ steps.status.outputs.emoji }} ${{ steps.status.outputs.status }}
+          
+          ## Deployment Details
+          
+          | Field | Value |
+          |-------|-------|
+          | Environment | ${{ needs.setup.outputs.environment }} |
+          | Version | ${{ needs.setup.outputs.version }} |
+          | Deployment ID | \`${{ needs.setup.outputs.deployment_id }}\` |
+          | Commit | ${{ github.sha }} |
+          | Actor | ${{ github.actor }} |
+          
+          ## Stage Results
+          
+          | Stage | Status |
+          |-------|--------|
+          | Security Scan | ${{ needs.security.result }} |
+          | Build & Test | ${{ needs.build.result }} |
+          | Staging Deploy | ${{ needs.deploy-staging.result }} |
+          | Production Deploy | ${{ needs.deploy-production.result }} |
+          | Post-Deploy | ${{ needs.post-deployment.result }} |
+          
+          ## Links
+          
+          - [Production Site](https://7gram.xyz)
+          - [Staging Site](https://staging.7gram.xyz)
+          - [Deployment Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF

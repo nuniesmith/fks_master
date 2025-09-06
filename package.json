@@ -1,0 +1,10 @@
+{
+  "name": "fks",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix src/web/react start",
+    "dev": "npm --prefix src/web/react run dev",
+    "build": "npm --prefix src/web/react run build",
+    "test": "npm --prefix src/web/react run test"
+  }
+}

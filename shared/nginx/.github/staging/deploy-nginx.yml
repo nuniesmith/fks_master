@@ -1,0 +1,447 @@
+# .github/workflows/deploy-nginx.yml
+# GitHub Actions workflow for automated deployment to nginx.7gram.xyz
+name: Deploy to nginx.7gram.xyz
+
+on:
+  # Trigger on push to main/master branch
+  push:
+    branches: [ main ]
+    paths:
+      - 'config/nginx/**'
+      - 'html/**'
+      - 'public/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  
+  # Allow manual deployment
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+      force_deploy:
+        description: 'Force deployment (skip tests)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  SERVER_HOST: nginx.7gram.xyz
+  SERVER_IP: 192.46.222.26
+  DEPLOY_PATH: /opt/nginx-deployment
+  BACKUP_PATH: /opt/nginx-backups
+  NGINX_CONFIG_PATH: /etc/nginx
+
+jobs:
+  # ============================================================================
+  # VALIDATION AND TESTING JOB
+  # ============================================================================
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      config_changed: ${{ steps.check_changes.outputs.config_changed }}
+      html_changed: ${{ steps.check_changes.outputs.html_changed }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check what changed
+        id: check_changes
+        run: |
+          # Check if nginx config files changed
+          if git diff --name-only HEAD^ HEAD | grep -E "^config/nginx/"; then
+            echo "config_changed=true" >> $GITHUB_OUTPUT
+            echo "🔧 Nginx configuration files changed"
+          else
+            echo "config_changed=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if HTML/static files changed
+          if git diff --name-only HEAD^ HEAD | grep -E "^(html|public)/"; then
+            echo "html_changed=true" >> $GITHUB_OUTPUT
+            echo "📄 HTML/static files changed"
+          else
+            echo "html_changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Install nginx for testing
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+      
+      - name: Validate nginx configuration syntax
+        if: steps.check_changes.outputs.config_changed == 'true' || github.event.inputs.force_deploy == 'true'
+        run: |
+          echo "🔍 Testing nginx configuration syntax..."
+          
+          # Create temporary nginx structure
+          sudo mkdir -p /tmp/nginx-test/{conf.d,includes}
+          
+          # Copy configuration files
+          if [ -d "config/nginx/conf.d" ]; then
+            sudo cp -r config/nginx/conf.d/* /tmp/nginx-test/conf.d/
+          fi
+          
+          if [ -d "config/nginx/includes" ]; then
+            sudo cp -r config/nginx/includes/* /tmp/nginx-test/includes/
+          fi
+          
+          # Create test nginx.conf
+          sudo tee /tmp/nginx-test/nginx.conf > /dev/null << 'EOF'
+          events {
+              worker_connections 1024;
+          }
+          http {
+              include /etc/nginx/mime.types;
+              include /tmp/nginx-test/conf.d/*.conf;
+          }
+          EOF
+          
+          # Test configuration
+          sudo nginx -t -c /tmp/nginx-test/nginx.conf
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Nginx configuration is valid"
+          else
+            echo "❌ Nginx configuration is invalid"
+            exit 1
+          fi
+      
+      - name: Validate HTML files
+        if: steps.check_changes.outputs.html_changed == 'true'
+        run: |
+          echo "🔍 Validating HTML files..."
+          
+          # Install HTML validator
+          npm install -g html-validate
+          
+          # Validate HTML files
+          if [ -d "html" ]; then
+            find html -name "*.html" -exec html-validate {} \;
+          fi
+          
+          if [ -d "public" ]; then
+            find public -name "*.html" -exec html-validate {} \;
+          fi
+          
+          echo "✅ HTML validation complete"
+      
+      - name: Security scan
+        run: |
+          echo "🔒 Running security checks..."
+          
+          # Check for sensitive information in configs
+          if grep -r -i "password\|secret\|key\|token" config/ --exclude-dir=.git; then
+            echo "⚠️  Warning: Potential sensitive information found in configs"
+            echo "Please review the above findings"
+          fi
+          
+          # Check for unsafe nginx configurations
+          if grep -r "proxy_pass.*http://.*\$" config/nginx/; then
+            echo "⚠️  Warning: Dynamic proxy_pass detected - ensure it's safe"
+          fi
+          
+          echo "✅ Security scan complete"
+
+  # ============================================================================
+  # DEPLOYMENT JOB
+  # ============================================================================
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.config_changed == 'true' || needs.validate.outputs.html_changed == 'true' || github.event.inputs.force_deploy == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup SSH
+        run: |
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          
+          # Add SSH private key
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Add server to known hosts
+          ssh-keyscan -H ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Test SSH connection
+        run: |
+          echo "🔗 Testing SSH connection..."
+          ssh -o ConnectTimeout=10 ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "echo 'SSH connection successful'"
+      
+      - name: Create deployment directory
+        run: |
+          echo "📁 Preparing deployment directory..."
+          ssh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "
+            mkdir -p ${{ env.DEPLOY_PATH }}
+            mkdir -p ${{ env.BACKUP_PATH }}
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Clean previous deployment
+            rm -rf nginx-config html public
+            
+            # Create directory structure
+            mkdir -p nginx-config html public
+          "
+      
+      - name: Upload files to server
+        run: |
+          echo "📤 Uploading files to server..."
+          
+          # Upload nginx configuration
+          if [ -d "config/nginx" ]; then
+            scp -r config/nginx/ ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }}:${{ env.DEPLOY_PATH }}/nginx-config/
+          fi
+          
+          # Upload HTML files
+          if [ -d "html" ]; then
+            scp -r html/ ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }}:${{ env.DEPLOY_PATH }}/html/
+          fi
+          
+          if [ -d "public" ]; then
+            scp -r public/ ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }}:${{ env.DEPLOY_PATH }}/public/
+          fi
+          
+          # Upload deployment script
+          scp scripts/deploy.sh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }}:${{ env.DEPLOY_PATH }}/
+          chmod +x ${{ env.DEPLOY_PATH }}/deploy.sh
+      
+      - name: Create backup
+        run: |
+          echo "💾 Creating backup of current configuration..."
+          ssh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "
+            TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
+            BACKUP_DIR=${{ env.BACKUP_PATH }}/backup_\$TIMESTAMP
+            
+            mkdir -p \$BACKUP_DIR
+            
+            # Backup nginx configuration
+            sudo cp -r ${{ env.NGINX_CONFIG_PATH }} \$BACKUP_DIR/nginx
+            
+            # Backup website files
+            if [ -d '/var/www/html' ]; then
+              sudo cp -r /var/www/html \$BACKUP_DIR/
+            fi
+            
+            # Keep only last 10 backups
+            cd ${{ env.BACKUP_PATH }}
+            ls -t | tail -n +11 | xargs rm -rf
+            
+            echo '✅ Backup created: \$BACKUP_DIR'
+          "
+      
+      - name: Test configuration on server
+        run: |
+          echo "🧪 Testing configuration on server..."
+          ssh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Test nginx configuration if changed
+            if [ -d 'nginx-config' ]; then
+              echo '🔍 Testing nginx configuration...'
+              
+              # Copy configs to temporary location
+              cp -r nginx-config/* /tmp/nginx-test/ 2>/dev/null || mkdir -p /tmp/nginx-test
+              
+              # Test configuration
+              sudo nginx -t -c /tmp/nginx-test/nginx.conf || sudo nginx -t
+              
+              if [ \$? -ne 0 ]; then
+                echo '❌ Nginx configuration test failed'
+                exit 1
+              fi
+            fi
+            
+            echo '✅ Configuration tests passed'
+          "
+      
+      - name: Deploy configuration
+        run: |
+          echo "🚀 Deploying configuration..."
+          ssh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Deploy nginx configuration
+            if [ -d 'nginx-config' ]; then
+              echo '🔧 Deploying nginx configuration...'
+              
+              # Copy configuration files
+              if [ -d 'nginx-config/conf.d' ]; then
+                sudo cp -r nginx-config/conf.d/* ${{ env.NGINX_CONFIG_PATH }}/conf.d/
+              fi
+              
+              if [ -d 'nginx-config/includes' ]; then
+                sudo mkdir -p ${{ env.NGINX_CONFIG_PATH }}/includes
+                sudo cp -r nginx-config/includes/* ${{ env.NGINX_CONFIG_PATH }}/includes/
+              fi
+              
+              if [ -f 'nginx-config/nginx.conf' ]; then
+                sudo cp nginx-config/nginx.conf ${{ env.NGINX_CONFIG_PATH }}/nginx.conf
+              fi
+              
+              # Test final configuration
+              sudo nginx -t
+              if [ \$? -eq 0 ]; then
+                echo '✅ Nginx configuration deployed successfully'
+              else
+                echo '❌ Nginx configuration deployment failed'
+                exit 1
+              fi
+            fi
+            
+            # Deploy HTML files
+            if [ -d 'html' ] || [ -d 'public' ]; then
+              echo '📄 Deploying HTML files...'
+              
+              # Ensure web directory exists
+              sudo mkdir -p /var/www/html
+              
+              # Deploy HTML files
+              if [ -d 'html' ]; then
+                sudo cp -r html/* /var/www/html/
+              fi
+              
+              if [ -d 'public' ]; then
+                sudo cp -r public/* /var/www/html/
+              fi
+              
+              # Set proper permissions
+              sudo chown -R nginx:nginx /var/www/html
+              sudo chmod -R 644 /var/www/html
+              sudo find /var/www/html -type d -exec chmod 755 {} \;
+              
+              echo '✅ HTML files deployed successfully'
+            fi
+          "
+      
+      - name: Reload nginx
+        run: |
+          echo "🔄 Reloading nginx..."
+          ssh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "
+            # Test configuration one more time
+            sudo nginx -t
+            
+            if [ \$? -eq 0 ]; then
+              # Reload nginx
+              sudo systemctl reload nginx
+              
+              # Verify nginx is running
+              sudo systemctl is-active nginx
+              
+              if [ \$? -eq 0 ]; then
+                echo '✅ Nginx reloaded successfully'
+              else
+                echo '❌ Nginx reload failed'
+                exit 1
+              fi
+            else
+              echo '❌ Nginx configuration test failed, not reloading'
+              exit 1
+            fi
+          "
+      
+      - name: Health check
+        run: |
+          echo "🏥 Performing health checks..."
+          
+          # Wait a moment for nginx to fully reload
+          sleep 5
+          
+          # Test main dashboard
+          if curl -f -s http://${{ env.SERVER_HOST }}/health > /dev/null; then
+            echo '✅ Dashboard health check passed'
+          else
+            echo '❌ Dashboard health check failed'
+            exit 1
+          fi
+          
+          # Test a few service endpoints
+          for service in emby jellyfin plex; do
+            if curl -f -s http://\$service.${{ env.SERVER_HOST }}/health > /dev/null; then
+              echo "✅ \$service health check passed"
+            else
+              echo "⚠️  \$service health check failed (service might be down)"
+            fi
+          done
+          
+          echo '✅ Health checks completed'
+      
+      - name: Cleanup deployment files
+        run: |
+          echo "🧹 Cleaning up deployment files..."
+          ssh ${{ secrets.SSH_USER }}@${{ env.SERVER_IP }} "
+            rm -rf ${{ env.DEPLOY_PATH }}/nginx-config
+            rm -rf ${{ env.DEPLOY_PATH }}/html
+            rm -rf ${{ env.DEPLOY_PATH }}/public
+            rm -f ${{ env.DEPLOY_PATH }}/deploy.sh
+          "
+
+  # ============================================================================
+  # NOTIFICATION JOB
+  # ============================================================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, deploy]
+    if: always()
+    
+    steps:
+      - name: Notify deployment status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            echo "🌐 Server: ${{ env.SERVER_HOST }}"
+            echo "📅 Time: $(date)"
+            echo "🔗 Commit: ${{ github.sha }}"
+          elif [ "${{ needs.deploy.result }}" == "failure" ]; then
+            echo "❌ Deployment failed!"
+            echo "🔗 Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          elif [ "${{ needs.validate.result }}" == "failure" ]; then
+            echo "❌ Validation failed!"
+            echo "🔗 Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            echo "ℹ️  No deployment needed - no relevant changes detected"
+          fi
+      
+      # Optional: Send to Discord/Slack webhook
+      - name: Discord notification
+        if: env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ needs.deploy.result }}"
+          if [ "$STATUS" == "success" ]; then
+            COLOR="3066993"
+            TITLE="✅ Deployment Successful"
+          else
+            COLOR="15158332"
+            TITLE="❌ Deployment Failed"
+          fi
+          
+          curl -H "Content-Type: application/json" \
+               -d "{
+                 \"embeds\": [{
+                   \"title\": \"$TITLE\",
+                   \"color\": $COLOR,
+                   \"fields\": [
+                     {\"name\": \"Server\", \"value\": \"${{ env.SERVER_HOST }}\", \"inline\": true},
+                     {\"name\": \"Commit\", \"value\": \"${{ github.sha }}\", \"inline\": true},
+                     {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true}
+                   ]
+                 }]
+               }" \
+               "$DISCORD_WEBHOOK_URL"

@@ -1,0 +1,2762 @@
+# NGINX Reverse Proxy Server Deployment.
+# Deploys NGINX server with Tailscale integration and DNS management
+
+name: 🚀 NGINX Server Deployment
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      nginx_action:
+        description: 'NGINX deployment action'
+        required: false
+        type: choice
+        options:
+          - 'deploy'
+          - 'restart'
+          - 'update'
+          - 'destroy'
+        default: 'deploy'
+      
+      create_new_server:
+        description: 'Create new Linode server'
+        required: false
+        type: boolean
+        default: true
+      
+      force_fresh_deployment:
+        description: 'Force fresh deployment (destroy existing server first)'
+        required: false
+        type: boolean
+        default: true
+      
+      server_type:
+        description: 'Server type to create'
+        required: false
+        type: choice
+        options:
+          - 'g6-nanode-1'          # 1GB RAM (nginx)
+          - 'g6-standard-1'        # 2GB RAM
+          - 'g6-standard-2'        # 4GB RAM
+          - 'g6-standard-4'        # 8GB RAM
+          - 'g6-standard-8'        # 16GB RAM
+        default: 'g6-nanode-1'
+      
+      target_region:
+        description: 'Linode region for server'
+        required: false
+        type: choice
+        options:
+          - 'us-east'              # New York/Newark
+          - 'us-central'           # Dallas
+          - 'us-west'              # Los Angeles
+          - 'ca-central'           # Toronto
+          - 'eu-west'              # London
+        default: 'ca-central'
+
+env:
+  NGINX_ACTION: ${{ github.event.inputs.nginx_action || 'deploy' }}
+  CREATE_NEW_SERVER: ${{ github.event.inputs.create_new_server || 'true' }}
+  FORCE_FRESH_DEPLOYMENT: ${{ github.event.inputs.force_fresh_deployment || 'true' }}
+  SERVER_TYPE: ${{ github.event.inputs.server_type || 'g6-standard-1' }}
+  TARGET_REGION: ${{ github.event.inputs.target_region || 'ca-central' }}
+  
+  # NGINX Configuration
+  NGINX_LINODE_REGION: ca-central
+  NGINX_LINODE_TYPE: g6-standard-1
+  NGINX_SERVER_NAME: nginx-7gram
+  NGINX_DOMAIN_NAME: nginx.7gram.xyz
+  
+  # Common Configuration
+  TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+jobs:
+  # ============================================================================
+  # Pre-flight Checks & Validation
+  # ============================================================================
+  preflight-checks:
+    name: 🛫 Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      secrets_validated: ${{ steps.validate-secrets.outputs.validated }}
+      deploy_nginx: ${{ steps.deployment-decision.outputs.deploy_nginx }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🎯 Deployment Decision
+        id: deployment-decision
+        run: |
+          echo "🎯 NGINX deployment confirmed"
+          echo "deploy_nginx=true" >> $GITHUB_OUTPUT
+          echo "✅ Will deploy NGINX server"
+
+      - name: 🔐 Validate Required Secrets
+        id: validate-secrets
+        env:
+          LINODE_CLI_TOKEN: ${{ secrets.LINODE_CLI_TOKEN }}
+          NGINX_ROOT_PASSWORD: ${{ secrets.NGINX_ROOT_PASSWORD }}
+          ACTIONS_USER_PASSWORD: ${{ secrets.ACTIONS_USER_PASSWORD }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          SSL_EMAIL: ${{ secrets.SSL_EMAIL }}
+          NETDATA_CLAIM_TOKEN: ${{ secrets.NETDATA_CLAIM_TOKEN }}
+          NETDATA_CLAIM_ROOM: ${{ secrets.NETDATA_CLAIM_ROOM }}
+        run: |
+          echo "🔐 Validating required secrets..."
+          
+          MISSING_SECRETS=()
+          
+          # Check critical secrets
+          [[ -z "$LINODE_CLI_TOKEN" ]] && MISSING_SECRETS+=("LINODE_CLI_TOKEN")
+          [[ -z "$NGINX_ROOT_PASSWORD" ]] && MISSING_SECRETS+=("NGINX_ROOT_PASSWORD")
+          [[ -z "$ACTIONS_USER_PASSWORD" ]] && MISSING_SECRETS+=("ACTIONS_USER_PASSWORD")
+          [[ -z "$TAILSCALE_AUTH_KEY" ]] && MISSING_SECRETS+=("TAILSCALE_AUTH_KEY")
+          [[ -z "$DOCKER_USERNAME" ]] && MISSING_SECRETS+=("DOCKER_USERNAME")
+          [[ -z "$DOCKER_TOKEN" ]] && MISSING_SECRETS+=("DOCKER_TOKEN")
+          [[ -z "$CLOUDFLARE_API_TOKEN" ]] && MISSING_SECRETS+=("CLOUDFLARE_API_TOKEN")
+          [[ -z "$CLOUDFLARE_ZONE_ID" ]] && MISSING_SECRETS+=("CLOUDFLARE_ZONE_ID")
+          [[ -z "$SSL_EMAIL" ]] && MISSING_SECRETS+=("SSL_EMAIL")
+          
+          # Optional but recommended
+          [[ -z "$NETDATA_CLAIM_TOKEN" ]] && echo "⚠️ Optional: NETDATA_CLAIM_TOKEN not set"
+          [[ -z "$NETDATA_CLAIM_ROOM" ]] && echo "⚠️ Optional: NETDATA_CLAIM_ROOM not set"
+          
+          if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
+            echo "❌ Missing required secrets:"
+            printf '  - %s\n' "${MISSING_SECRETS[@]}"
+            echo "validated=false" >> $GITHUB_OUTPUT
+            echo ""
+            echo "Please configure these secrets in your repository settings:"
+            echo "https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          else
+            echo "✅ All required secrets are configured"
+            echo "validated=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================================
+  # Detect File Changes
+  # ============================================================================
+  detect-changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    needs: preflight-checks
+    if: needs.preflight-checks.outputs.secrets_validated == 'true'
+    outputs:
+      nginx-changed: ${{ steps.changes.outputs.nginx }}
+      docker-changed: ${{ steps.changes.outputs.docker }}
+      workflow-changed: ${{ steps.changes.outputs.workflow }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: 🔍 Check for file changes
+        id: changes
+        run: |
+          # Check if this is a manual trigger or first push
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual trigger - building NGINX"
+            echo "nginx=true" >> $GITHUB_OUTPUT
+            echo "docker=true" >> $GITHUB_OUTPUT
+            echo "workflow=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files: $CHANGED_FILES"
+          
+          # Check for NGINX changes
+          if echo "$CHANGED_FILES" | grep -E '^(config/nginx|html|docker-compose\.yml|Dockerfile)' >/dev/null 2>&1; then
+            echo "nginx=true" >> $GITHUB_OUTPUT
+            echo "📦 NGINX changes detected"
+          else
+            echo "nginx=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check for Docker/deployment changes
+          if echo "$CHANGED_FILES" | grep -E '^docker-compose|Dockerfile|\.dockerignore' >/dev/null 2>&1; then
+            echo "docker=true" >> $GITHUB_OUTPUT
+            echo "🐳 Docker changes detected"
+          else
+            echo "docker=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check for workflow changes
+          if echo "$CHANGED_FILES" | grep -E '^\.github/workflows/' >/dev/null 2>&1; then
+            echo "workflow=true" >> $GITHUB_OUTPUT
+            echo "⚙️ Workflow changes detected"
+          else
+            echo "workflow=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================================
+  # Build and Push Docker Images
+  # ============================================================================
+  build-and-push-images:
+    name: 🐳 Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [preflight-checks, detect-changes]
+    if: |
+      needs.preflight-checks.outputs.secrets_validated == 'true' && 
+      (needs.detect-changes.outputs.nginx-changed == 'true' || 
+       needs.detect-changes.outputs.docker-changed == 'true' || 
+       github.event_name == 'workflow_dispatch')
+    outputs:
+      nginx-image: ${{ steps.build-info.outputs.nginx-image }}
+      build-timestamp: ${{ steps.build-info.outputs.build-timestamp }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+            image=moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 4
+            [worker.containerd]
+              max-parallelism = 4
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: 🏷️ Generate build info
+        id: build-info
+        run: |
+          BUILD_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          GIT_SHA=$(git rev-parse --short HEAD)
+          
+          # Generate image tags
+          NGINX_IMAGE="${{ secrets.DOCKER_USERNAME }}/nginx:${BUILD_TIMESTAMP}-${GIT_SHA}"
+          NGINX_LATEST="${{ secrets.DOCKER_USERNAME }}/nginx:latest"
+          
+          echo "build-timestamp=$BUILD_TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "nginx-image=$NGINX_IMAGE" >> $GITHUB_OUTPUT
+          
+          echo "🏷️ Build info:"
+          echo "   Timestamp: $BUILD_TIMESTAMP"
+          echo "   Git SHA: $GIT_SHA"
+          echo "   NGINX Image: $NGINX_IMAGE"
+
+      - name: 🐳 Build and push images in parallel
+        run: |
+          echo "🚀 Building multiple images in parallel with advanced caching..."
+          
+          # Build NGINX image with advanced cache strategy
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --push \
+            --tag ${{ steps.build-info.outputs.nginx-image }} \
+            --tag ${{ secrets.DOCKER_USERNAME }}/nginx:latest \
+            --cache-from type=gha,scope=nginx \
+            --cache-from type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx:buildcache \
+            --cache-to type=gha,mode=max,scope=nginx \
+            --cache-to type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx:buildcache,mode=max \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --build-arg BUILD_DATE=${{ steps.build-info.outputs.build-timestamp }} \
+            --build-arg GIT_SHA=${{ github.sha }} \
+            --file ./Dockerfile \
+            . &
+          
+          NGINX_PID=$!
+          
+          # Template for additional services (uncomment and modify as needed):
+          # 
+          # # Build API service in parallel
+          # docker buildx build \
+          #   --platform linux/amd64,linux/arm64 \
+          #   --push \
+          #   --tag ${{ secrets.DOCKER_USERNAME }}/api:${{ steps.build-info.outputs.build-timestamp }} \
+          #   --tag ${{ secrets.DOCKER_USERNAME }}/api:latest \
+          #   --cache-from type=gha,scope=api \
+          #   --cache-to type=gha,mode=max,scope=api \
+          #   --build-arg BUILDKIT_INLINE_CACHE=1 \
+          #   --file ./api/Dockerfile \
+          #   ./api &
+          # API_PID=$!
+          # 
+          # # Build worker service in parallel
+          # docker buildx build \
+          #   --platform linux/amd64,linux/arm64 \
+          #   --push \
+          #   --tag ${{ secrets.DOCKER_USERNAME }}/worker:${{ steps.build-info.outputs.build-timestamp }} \
+          #   --tag ${{ secrets.DOCKER_USERNAME }}/worker:latest \
+          #   --cache-from type=gha,scope=worker \
+          #   --cache-to type=gha,mode=max,scope=worker \
+          #   --build-arg BUILDKIT_INLINE_CACHE=1 \
+          #   --file ./worker/Dockerfile \
+          #   ./worker &
+          # WORKER_PID=$!
+          
+          # Wait for all builds to complete
+          echo "⏳ Waiting for NGINX build to complete..."
+          wait $NGINX_PID
+          NGINX_EXIT=$?
+          
+          # # Wait for additional services (uncomment as needed):
+          # echo "⏳ Waiting for API build to complete..."
+          # wait $API_PID
+          # API_EXIT=$?
+          # 
+          # echo "⏳ Waiting for Worker build to complete..."
+          # wait $WORKER_PID
+          # WORKER_EXIT=$?
+          
+          # Check build results
+          if [ $NGINX_EXIT -eq 0 ]; then
+            echo "✅ NGINX build completed successfully"
+          else
+            echo "❌ NGINX build failed"
+            exit 1
+          fi
+          
+          # # Check additional services (uncomment as needed):
+          # if [ $API_EXIT -eq 0 ]; then
+          #   echo "✅ API build completed successfully"
+          # else
+          #   echo "❌ API build failed"
+          #   exit 1
+          # fi
+          # 
+          # if [ $WORKER_EXIT -eq 0 ]; then
+          #   echo "✅ Worker build completed successfully"
+          # else
+          #   echo "❌ Worker build failed"
+          #   exit 1
+          # fi
+          
+      - name: 📤 Export build results
+        id: export-build-results
+        run: |
+          echo "�️ Exporting build results..."
+          echo "NGINX_IMAGE=${{ steps.build-info.outputs.nginx-image }}" >> $GITHUB_OUTPUT
+          echo "BUILD_TIMESTAMP=${{ steps.build-info.outputs.build-timestamp }}" >> $GITHUB_OUTPUT
+          echo "GIT_SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+          
+          # Template for additional services:
+          # echo "API_IMAGE=${{ secrets.DOCKER_USERNAME }}/api:${{ steps.build-info.outputs.build-timestamp }}" >> $GITHUB_OUTPUT
+          # echo "WORKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/worker:${{ steps.build-info.outputs.build-timestamp }}" >> $GITHUB_OUTPUT
+          
+          echo "✅ All image tags exported for deployment"
+          
+          echo "📊 Build Performance Summary:"
+          echo "• Multi-platform builds (amd64, arm64) completed in parallel"
+          echo "• Advanced caching enabled (GitHub Actions + Registry)"
+          echo "• Build parallelism optimized for maximum throughput"
+          echo "• Images pushed to Docker Hub with timestamped tags"
+          echo "• Future builds will be significantly faster due to cached layers"
+
+      - name: 🐳 Build and push NGINX image (fallback)
+        if: failure()
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.build-info.outputs.nginx-image }}
+            ${{ secrets.DOCKER_USERNAME }}/nginx:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.build-info.outputs.build-timestamp }}
+            GIT_SHA=${{ github.sha }}
+
+      - name: 📋 Build Summary
+        run: |
+          echo "✅ Docker build completed successfully!"
+          echo "🐳 Images built and pushed:"
+          echo "   📦 NGINX: ${{ steps.build-info.outputs.nginx-image }}"
+          echo "   📦 NGINX Latest: ${{ secrets.DOCKER_USERNAME }}/nginx:latest"
+          echo "🚀 Images are ready for deployment"
+
+  # ============================================================================
+  # Infrastructure Check & Setup
+  # ============================================================================
+  infrastructure-check:
+    name: 🏗️ Infrastructure Check
+    runs-on: ubuntu-latest
+    needs: [preflight-checks, detect-changes, build-and-push-images]
+    if: |
+      always() && 
+      needs.preflight-checks.outputs.secrets_validated == 'true' && 
+      (needs.build-and-push-images.result == 'success' || needs.build-and-push-images.result == 'skipped')
+    outputs:
+      nginx-server-exists: ${{ steps.check-nginx.outputs.exists }}
+      nginx-server-ip: ${{ steps.check-nginx.outputs.ip }}
+      nginx-server-id: ${{ steps.check-nginx.outputs.id }}
+      should-create-nginx: ${{ steps.nginx-decision.outputs.create }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Linode CLI
+        uses: linode/action-linode-cli@v1
+        with:
+          token: ${{ secrets.LINODE_CLI_TOKEN }}
+
+      - name: 🔍 Check NGINX Server
+        id: check-nginx
+        run: |
+          echo "🔍 Checking for existing NGINX server..."
+          
+          SERVER_ID=$(linode-cli linodes list --text --no-header --format="id,label" | grep "${{ env.NGINX_SERVER_NAME }}" | cut -f1 || echo "")
+          if [ -n "$SERVER_ID" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "id=$SERVER_ID" >> $GITHUB_OUTPUT
+            SERVER_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+            echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+            echo "✅ Found existing NGINX server: $SERVER_ID with IP: $SERVER_IP"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "id=" >> $GITHUB_OUTPUT
+            echo "ip=" >> $GITHUB_OUTPUT
+            echo "ℹ️ No existing NGINX server found"
+          fi
+          
+          # Debug output to verify what we set
+          echo ""
+          echo "🔍 DEBUG: Check NGINX outputs:"
+          echo "   exists: $([ -n "$SERVER_ID" ] && echo "true" || echo "false")"
+          echo "   id: $SERVER_ID"
+          echo "   ip: $SERVER_IP"
+
+      - name: 🤔 NGINX Deployment Decision
+        id: nginx-decision
+        run: |
+          echo "🤔 Making NGINX deployment decisions..."
+          
+          SERVER_EXISTS="${{ steps.check-nginx.outputs.exists }}"
+          CREATE_NEW="${{ env.CREATE_NEW_SERVER }}"
+          FORCE_FRESH="${{ env.FORCE_FRESH_DEPLOYMENT }}"
+          NGINX_ACTION="${{ env.NGINX_ACTION }}"
+          
+          echo "NGINX server exists: $SERVER_EXISTS"
+          echo "Create new requested: $CREATE_NEW"
+          echo "Force fresh deployment: $FORCE_FRESH"
+          echo "NGINX action: $NGINX_ACTION"
+          
+          if [[ "$FORCE_FRESH" == "true" ]]; then
+            echo "🔥 Force fresh deployment enabled - will ALWAYS create new server"
+            echo "   This means: destroy existing + create fresh + Stage 1 + Stage 2"
+            echo "create=true" >> $GITHUB_OUTPUT
+          elif [[ "$SERVER_EXISTS" == "true" && "$NGINX_ACTION" != "destroy" ]]; then
+            echo "✅ NGINX server exists and no force fresh - will use existing server"
+            echo "   This means: skip server creation, use existing configured server"
+            echo "create=false" >> $GITHUB_OUTPUT
+          elif [[ "$CREATE_NEW" == "true" || "$NGINX_ACTION" == "deploy" ]]; then
+            echo "🔨 Will create new NGINX server (no existing server found)"
+            echo "   This means: create fresh + Stage 1 + Stage 2"
+            echo "create=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No NGINX server exists and create_new_server=false"
+            echo "   This means: no deployment will occur"
+            echo "create=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo ""
+          echo "=== DEPLOYMENT DECISION SUMMARY ==="
+          echo "Force fresh deployment: $FORCE_FRESH"
+          echo "Server exists: $SERVER_EXISTS"
+          echo "Decision: $([ "$FORCE_FRESH" == "true" ] && echo "CREATE NEW (destroy + fresh setup)" || echo "USE EXISTING (if available)")"
+          echo "======================================"
+          
+          echo ""
+          echo "🔍 DEBUG: Job Execution Predictions:"
+          echo "   destroy-nginx-server will run: $([ "$FORCE_FRESH" == "true" ] && [ "$SERVER_EXISTS" == "true" ] && echo "YES" || echo "NO")"
+          echo "   create-nginx-server will run: $([ "$FORCE_FRESH" == "true" ] || [ "$SERVER_EXISTS" == "false" ] && echo "YES" || echo "NO")"
+          echo "   deploy-nginx will deploy to: $([ "$FORCE_FRESH" == "true" ] && echo "NEWLY CREATED SERVER" || echo "EXISTING SERVER")"
+
+  # ============================================================================
+  # Destroy NGINX Server (if requested)
+  # ============================================================================
+  destroy-nginx-server:
+    name: 🗑️ Destroy NGINX Server
+    runs-on: ubuntu-latest
+    needs: infrastructure-check
+    if: |
+      (github.event.inputs.nginx_action == 'destroy' && needs.infrastructure-check.outputs.nginx-server-exists == 'true') ||
+      (github.event.inputs.force_fresh_deployment == 'true' && needs.infrastructure-check.outputs.nginx-server-exists == 'true')
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Debug Destroy Job Execution
+        run: |
+          echo "=== DESTROY JOB EXECUTION DEBUG ==="
+          echo "nginx_action input: ${{ github.event.inputs.nginx_action }}"
+          echo "force_fresh_deployment input: ${{ github.event.inputs.force_fresh_deployment }}"
+          echo "nginx-server-exists: ${{ needs.infrastructure-check.outputs.nginx-server-exists }}"
+          echo ""
+          echo "Condition 1 (manual destroy): nginx_action == 'destroy' AND server exists"
+          echo "   Result: $([ "${{ github.event.inputs.nginx_action }}" == "destroy" ] && [ "${{ needs.infrastructure-check.outputs.nginx-server-exists }}" == "true" ] && echo "TRUE" || echo "FALSE")"
+          echo ""
+          echo "Condition 2 (force fresh): force_fresh_deployment == 'true' AND server exists"
+          echo "   Result: $([ "${{ github.event.inputs.force_fresh_deployment }}" == "true" ] && [ "${{ needs.infrastructure-check.outputs.nginx-server-exists }}" == "true" ] && echo "TRUE" || echo "FALSE")"
+          echo ""
+          echo "Overall: This job should $([ "${{ github.event.inputs.nginx_action }}" == "destroy" ] && [ "${{ needs.infrastructure-check.outputs.nginx-server-exists }}" == "true" ] && echo "RUN (manual destroy)" || [ "${{ github.event.inputs.force_fresh_deployment }}" == "true" ] && [ "${{ needs.infrastructure-check.outputs.nginx-server-exists }}" == "true" ] && echo "RUN (force fresh)" || echo "NOT RUN")"
+          echo "================================="
+
+      - name: Setup Linode CLI
+        uses: linode/action-linode-cli@v1
+        with:
+          token: ${{ secrets.LINODE_CLI_TOKEN }}
+
+      - name: 🗑️ Destroy NGINX server with Tailscale cleanup
+        run: |
+          echo "=== NGINX SERVER DESTRUCTION ==="
+          
+          # Determine why this job is running
+          if [[ "${{ github.event.inputs.nginx_action }}" == "destroy" ]]; then
+            echo "🗑️ Reason: Manual destroy action requested"
+          elif [[ "${{ github.event.inputs.force_fresh_deployment }}" == "true" ]]; then
+            echo "🔥 Reason: Force fresh deployment enabled - destroying existing server"
+            echo "   This will be followed by creating a completely new server with Stage 1+2 setup"
+          else
+            echo "❓ Reason: Unknown (this shouldn't happen)"
+          fi
+          
+          echo "🗑️ Proceeding with server destruction..."
+          
+          SERVER_ID="${{ needs.infrastructure-check.outputs.nginx-server-id }}"
+          SERVER_IP="${{ needs.infrastructure-check.outputs.nginx-server-ip }}"
+          
+          echo "🔥 Found NGINX server to destroy: $SERVER_ID (IP: $SERVER_IP)"
+          echo "🔥 This will permanently delete the server and all its data!"
+          
+          # First, try to remove the server from Tailscale network before destroying it
+          echo "📡 Attempting to remove server from Tailscale network..."
+          if [ -n "$SERVER_IP" ]; then
+            # Try to connect to the server and remove it from Tailscale
+            echo "🔗 Connecting to server to remove Tailscale registration..."
+            sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 actions_user@$SERVER_IP << 'TAILSCALE_CLEANUP' || echo "⚠️ Could not connect to server for Tailscale cleanup"
+            echo "📡 Removing this server from Tailscale network..."
+            
+            # Check if tailscale is running and remove the device
+            if command -v tailscale >/dev/null 2>&1; then
+              echo "🔍 Checking Tailscale status..."
+              tailscale status 2>/dev/null || echo "Tailscale not active"
+              
+              echo "🗑️ Logging out from Tailscale..."
+              sudo tailscale logout 2>/dev/null || tailscale logout 2>/dev/null || echo "Logout failed or already logged out"
+              
+              echo "🛑 Stopping Tailscale daemon..."
+              sudo systemctl stop tailscaled 2>/dev/null || echo "Failed to stop tailscaled via systemctl"
+              
+              echo "✅ Tailscale cleanup completed on server"
+            else
+              echo "ℹ️ Tailscale not found on server"
+            fi
+          TAILSCALE_CLEANUP
+          fi
+          
+          # Show final warning
+          echo "⚠️  FINAL WARNING: About to permanently destroy server $SERVER_ID"
+          echo "⚠️  This action cannot be undone!"
+          sleep 5
+          
+          # Shutdown the server first
+          echo "⏸️ Shutting down server $SERVER_ID..."
+          linode-cli linodes shutdown $SERVER_ID || echo "⚠️ Shutdown failed or server already stopped"
+          
+          # Wait a bit for shutdown
+          sleep 30
+          
+          # Delete the server
+          echo "🗑️ Deleting server $SERVER_ID..."
+          linode-cli linodes delete $SERVER_ID || {
+            echo "❌ Failed to delete server $SERVER_ID"
+            exit 1
+          }
+          
+          echo "✅ Successfully destroyed NGINX server $SERVER_ID"
+          echo "📡 Tailscale device should be automatically removed from network"
+          echo "🏁 Server destruction completed"
+
+  # ============================================================================
+  # Create NGINX Server
+  # ============================================================================
+  create-nginx-server:
+    name: 🔨 Create NGINX Server
+    runs-on: ubuntu-latest
+    needs: [infrastructure-check, destroy-nginx-server]
+    if: |
+      always() && 
+      needs.infrastructure-check.outputs.should-create-nginx == 'true' &&
+      (needs.destroy-nginx-server.result == 'success' || needs.destroy-nginx-server.result == 'skipped')
+    outputs:
+      server-ip: ${{ steps.server_details.outputs.server_ip }}
+      server-id: ${{ steps.server_details.outputs.server_id }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Debug Server Creation Reason
+        run: |
+          echo "=== NGINX SERVER CREATION ==="
+          echo "Force fresh deployment: ${{ github.event.inputs.force_fresh_deployment }}"
+          echo "Should create nginx: ${{ needs.infrastructure-check.outputs.should-create-nginx }}"
+          echo "Destroy job result: ${{ needs.destroy-nginx-server.result }}"
+          echo ""
+          
+          if [[ "${{ github.event.inputs.force_fresh_deployment }}" == "true" ]]; then
+            echo "🔥 Creating FRESH server due to force_fresh_deployment=true"
+            echo "   This will include:"
+            echo "   ✓ Complete Stage 1 setup (users, Docker, systemd services)"
+            echo "   ✓ Automatic reboot and Stage 2 execution"
+            echo "   ✓ Tailscale connection with IP assignment"
+            echo "   ✓ Netdata cloud claiming"
+            echo "   Ready for deployment after Stage 1+2 completion!"
+          else
+            echo "🔨 Creating new server (no existing server found)"
+          fi
+          echo "=================================="
+
+      - name: Setup Linode CLI
+        uses: linode/action-linode-cli@v1
+        with:
+          token: ${{ secrets.LINODE_CLI_TOKEN }}
+
+      - name: 🗑️ Comprehensive cleanup for fresh deployment
+        if: env.FORCE_FRESH_DEPLOYMENT == 'true'
+        run: |
+          echo "🗑️ Force fresh deployment enabled - performing comprehensive cleanup..."
+          
+          SERVER_ID=$(linode-cli linodes list --text --no-header --format="id,label" | grep "${{ env.NGINX_SERVER_NAME }}" | cut -f1 || echo "")
+          if [ -n "$SERVER_ID" ]; then
+            echo "🔥 Found existing server: $SERVER_ID"
+            echo "🔥 Performing comprehensive cleanup for fresh deployment..."
+            
+            # Get the server IP for cleanup operations
+            SERVER_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+            echo "📍 Server IP: $SERVER_IP"
+            
+            # === COMPREHENSIVE TAILSCALE CLEANUP ===
+            echo "📡 Performing comprehensive Tailscale cleanup..."
+            if [ -n "$SERVER_IP" ]; then
+              echo "🔗 Attempting Tailscale cleanup via multiple methods..."
+              
+              # Method 1: Try via actions_user
+              echo "   📡 Method 1: Tailscale cleanup via actions_user..."
+              timeout 30 sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 actions_user@$SERVER_IP << 'TAILSCALE_CLEANUP_ACTIONS' || echo "   ⚠️ Actions user cleanup failed"
+              echo "📡 Tailscale cleanup via actions_user..."
+              if command -v tailscale >/dev/null 2>&1; then
+                echo "🔍 Current Tailscale status:"
+                tailscale status 2>/dev/null || echo "Tailscale not active"
+                echo "🗑️ Forcing Tailscale logout..."
+                sudo tailscale logout --force 2>/dev/null || tailscale logout --force 2>/dev/null || echo "Logout failed"
+                echo "� Stopping Tailscale services..."
+                sudo systemctl stop tailscaled 2>/dev/null || echo "Could not stop tailscaled"
+                sudo systemctl disable tailscaled 2>/dev/null || echo "Could not disable tailscaled"
+                echo "✅ Tailscale cleanup completed via actions_user"
+              else
+                echo "ℹ️ Tailscale not found via actions_user"
+              fi
+          TAILSCALE_CLEANUP_ACTIONS
+              
+              # Method 2: Try via root
+              echo "   📡 Method 2: Tailscale cleanup via root..."
+              timeout 30 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@$SERVER_IP << 'TAILSCALE_CLEANUP_ROOT' || echo "   ⚠️ Root cleanup failed"
+              echo "📡 Tailscale cleanup via root..."
+              if command -v tailscale >/dev/null 2>&1; then
+                echo "🔍 Current Tailscale status:"
+                tailscale status 2>/dev/null || echo "Tailscale not active"
+                echo "🗑️ Forcing Tailscale logout..."
+                tailscale logout --force 2>/dev/null || echo "Logout failed"
+                echo "🛑 Stopping Tailscale services..."
+                systemctl stop tailscaled 2>/dev/null || echo "Could not stop tailscaled"
+                systemctl disable tailscaled 2>/dev/null || echo "Could not disable tailscaled"
+                echo "🧹 Removing Tailscale state files..."
+                rm -rf /var/lib/tailscale/* 2>/dev/null || echo "Could not remove state files"
+                echo "✅ Tailscale cleanup completed via root"
+              else
+                echo "ℹ️ Tailscale not found via root"
+              fi
+          TAILSCALE_CLEANUP_ROOT
+            fi
+            
+            # === COMPREHENSIVE NETDATA CLEANUP ===
+            echo "📊 Performing comprehensive Netdata cleanup..."
+            if [ -n "$SERVER_IP" ]; then
+              echo "🔗 Attempting Netdata cleanup..."
+              timeout 30 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@$SERVER_IP << 'NETDATA_CLEANUP' || echo "   ⚠️ Netdata cleanup failed"
+              echo "📊 Netdata cleanup..."
+              echo "🛑 Stopping Netdata service..."
+              systemctl stop netdata 2>/dev/null || echo "Netdata not running"
+              systemctl disable netdata 2>/dev/null || echo "Could not disable netdata"
+              echo "🧹 Removing Netdata cloud configuration..."
+              rm -rf /var/lib/netdata/cloud.d/* 2>/dev/null || echo "No cloud config to remove"
+              rm -f /var/lib/netdata/cloud.d/claimed_id 2>/dev/null || echo "No claimed_id to remove"
+              rm -f /var/lib/netdata/registry/* 2>/dev/null || echo "No registry to remove"
+              echo "✅ Netdata cleanup completed"
+          NETDATA_CLEANUP
+            fi
+            
+            # === SERVER DESTRUCTION ===
+            echo "🗑️ Destroying server with enhanced shutdown..."
+            
+            # Graceful shutdown first
+            echo "⏸️ Initiating graceful shutdown of server $SERVER_ID..."
+            linode-cli linodes shutdown $SERVER_ID || echo "⚠️ Shutdown failed or server already stopped"
+            
+            # Wait for clean shutdown
+            echo "⏳ Waiting for services to stop cleanly..."
+            sleep 60  # Extended wait for proper service cleanup
+            
+            # Delete the server
+            echo "🗑️ Deleting server $SERVER_ID..."
+            if linode-cli linodes delete $SERVER_ID; then
+              echo "✅ Successfully destroyed server $SERVER_ID"
+            else
+              echo "❌ Failed to delete server $SERVER_ID"
+              echo "   This may require manual cleanup in Linode console"
+              exit 1
+            fi
+            
+            echo "✅ Comprehensive cleanup completed:"
+            echo "   ✓ Server $SERVER_ID destroyed"
+            echo "   ✓ Tailscale device cleanup attempted (logout + disable)"
+            echo "   ✓ Netdata node cleanup attempted (unclaim + disable)"
+            echo "🔄 Ready for completely fresh server creation..."
+            
+          else
+            echo "ℹ️ No existing server found - proceeding with fresh creation"
+          fi
+          
+          # === VERIFY CLEANUP COMPLETION ===
+          echo "🔍 Verifying cleanup completion..."
+          sleep 30  # Allow time for Linode API propagation
+          
+          REMAINING_SERVERS=$(linode-cli linodes list --text --no-header --format="id,label" | grep "${{ env.NGINX_SERVER_NAME }}" || echo "")
+          if [ -n "$REMAINING_SERVERS" ]; then
+            echo "⚠️ Warning: Found remaining servers with name '${{ env.NGINX_SERVER_NAME }}':"
+            echo "$REMAINING_SERVERS"
+            echo "🧹 Cleaning up any remaining orphaned servers..."
+            echo "$REMAINING_SERVERS" | while IFS=$'\t' read -r remaining_id remaining_label; do
+              if [ -n "$remaining_id" ] && [[ "$remaining_id" =~ ^[0-9]+$ ]]; then
+                echo "   🗑️ Removing orphaned server: $remaining_id ($remaining_label)"
+                linode-cli linodes delete $remaining_id 2>/dev/null || echo "   ⚠️ Failed to delete $remaining_id"
+              fi
+            done
+            echo "⏳ Final cleanup wait..."
+            sleep 30
+          else
+            echo "✅ No remaining servers found - cleanup verified complete"
+          fi
+
+      - name: Check if server exists
+        id: check_server
+        run: |
+          SERVER_ID=$(linode-cli linodes list --text --no-header --format="id,label" | grep "${{ env.NGINX_SERVER_NAME }}" | cut -f1 || echo "")
+          if [ -n "$SERVER_ID" ]; then
+            echo "server_exists=true" >> $GITHUB_OUTPUT
+            echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+            SERVER_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+            echo "server_ip=$SERVER_IP" >> $GITHUB_OUTPUT
+            echo "Server exists: $SERVER_ID with IP: $SERVER_IP"
+          else
+            echo "server_exists=false" >> $GITHUB_OUTPUT
+            echo "Server does not exist"
+          fi
+
+      - name: Create Linode server using FKS pattern
+        if: steps.check_server.outputs.server_exists == 'false' || env.FORCE_FRESH_DEPLOYMENT == 'true'
+        id: create_server
+        run: |
+          echo "🔨 Creating new NGINX Linode server using FKS proven patterns..."
+          
+          # Pre-deployment cleanup - ensure no existing servers with our name
+          echo "🧹 Pre-deployment cleanup check..."
+          EXISTING_SERVERS=$(linode-cli linodes list --text --no-header --format="id,label" 2>/dev/null | grep "${{ env.NGINX_SERVER_NAME }}" || echo "")
+          
+          if [ -n "$EXISTING_SERVERS" ]; then
+            echo "   🗑️ Found existing servers with name '${{ env.NGINX_SERVER_NAME }}', cleaning up..."
+            echo "$EXISTING_SERVERS" | while IFS=$'\t' read -r server_id server_label; do
+              if [ -n "$server_id" ] && [[ "$server_id" =~ ^[0-9]+$ ]]; then
+                echo "   🗑️ Deleting existing server: $server_id ($server_label)"
+                linode-cli linodes delete $server_id 2>/dev/null || echo "   ⚠️ Failed to delete server $server_id"
+              fi
+            done
+            echo "   ⏳ Waiting 30 seconds for cleanup to complete..."
+            sleep 30
+          else
+            echo "   ✅ No existing servers found - clean slate confirmed"
+          fi
+          
+          #  Multi-strategy server creation with proven configurations
+          CREATE_SUCCESS=false
+          ATTEMPTS=0
+          MAX_ATTEMPTS=3
+          
+          while [ $CREATE_SUCCESS = false ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            ATTEMPTS=$((ATTEMPTS + 1))
+            echo "🔨 Server creation attempt $ATTEMPTS/$MAX_ATTEMPTS using FKS strategy..."
+            
+            # Use FKS proven configurations
+            case $ATTEMPTS in
+              1)
+                echo "   Strategy 1: Arch Linux in ca-central (FKS standard)"
+                IMAGE="linode/arch"
+                REGION="ca-central"
+                ;;
+              2)
+                echo "   Strategy 2: Ubuntu 22.04 LTS (FKS fallback)"
+                IMAGE="linode/ubuntu22.04"
+                REGION="ca-central"
+                ;;
+              3)
+                echo "   Strategy 3: Arch Linux in us-east (FKS backup)"
+                IMAGE="linode/arch"
+                REGION="us-east"
+                ;;
+            esac
+            
+            echo "   📍 Using FKS config: $IMAGE in $REGION with ${{ env.SERVER_TYPE }}"
+            
+            # Create server using exact FKS command pattern
+            echo "   📝 Creating server with FKS proven command structure..."
+            
+            RESULT=$(linode-cli linodes create \
+              --type ${{ env.SERVER_TYPE }} \
+              --region $REGION \
+              --image $IMAGE \
+              --label ${{ env.NGINX_SERVER_NAME }} \
+              --root_pass "${{ secrets.NGINX_ROOT_PASSWORD }}" \
+              --json 2>&1)
+            
+            echo "   📋 Creation result received, parsing JSON response..."
+            
+            # Check for errors first
+            if [[ $RESULT == *"ERROR"* ]] || [[ $RESULT == *"error"* ]]; then
+              echo "   ❌ Server creation failed: $RESULT"
+              if [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; then
+                echo "   ⏳ Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+              continue
+            fi
+            
+            # Parse JSON response (FKS pattern)
+            echo "   📋 Raw Linode CLI result:"
+            echo "$RESULT" | head -5
+            echo "   ..."
+            
+            JSON_PART=$(echo "$RESULT" | sed '/^Failed to parse JSON: Using default values:/d' | sed -n '/^[\[{]/,$p')
+            echo "   📋 Extracted JSON part:"
+            echo "$JSON_PART" | head -3
+            
+            SERVER_ID=$(echo "$JSON_PART" | jq -r '.[0].id' 2>/dev/null || echo "")
+            SERVER_IP=$(echo "$JSON_PART" | jq -r '.[0].ipv4[0]' 2>/dev/null || echo "")
+            
+            echo "   🔍 Parsed from JSON: SERVER_ID='$SERVER_ID', SERVER_IP='$SERVER_IP'"
+            
+            # If JSON parsing fails, try alternative method
+            if [ -z "$SERVER_ID" ] || [ -z "$SERVER_IP" ]; then
+              echo "   ⚠️ JSON parsing failed, trying alternative method..."
+              echo "   🔍 Checking for newly created server by name..."
+              
+              sleep 10  # Wait for API propagation
+              NEW_SERVER=$(linode-cli linodes list --text --no-header --format="id,label,ipv4" | grep "${{ env.NGINX_SERVER_NAME }}" | tail -1)
+              
+              if [ -n "$NEW_SERVER" ]; then
+                SERVER_ID=$(echo "$NEW_SERVER" | cut -f1)
+                SERVER_IP=$(echo "$NEW_SERVER" | cut -f3 | cut -d',' -f1)
+                echo "   ✅ Found server via alternative method: $SERVER_ID @ $SERVER_IP"
+              fi
+            fi
+            
+            # Validate parsed results
+            if [ -z "$SERVER_ID" ] || [ -z "$SERVER_IP" ] || [[ ! "$SERVER_ID" =~ ^[0-9]+$ ]] || [[ ! "$SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+              echo "   ❌ Failed to parse server creation response"
+              echo "   📋 Raw result: $RESULT"
+              echo "   📋 JSON part: $JSON_PART"
+              
+              # Check for orphaned server
+              echo "   🔍 Checking for orphaned server creation..."
+              ORPHANED_SERVER=$(linode-cli linodes list --text --no-header --format="id,label" 2>/dev/null | grep "${{ env.NGINX_SERVER_NAME }}" | tail -1 | cut -f1 || echo "")
+              
+              if [ -n "$ORPHANED_SERVER" ]; then
+                echo "   🗑️ Found orphaned server $ORPHANED_SERVER - cleaning up..."
+                linode-cli linodes delete $ORPHANED_SERVER 2>/dev/null || echo "   ⚠️ Failed to delete orphaned server"
+                sleep 15
+              fi
+              
+              if [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; then
+                echo "   ⏳ Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+              continue
+            fi
+            
+            echo "   ✅ Server created successfully: $SERVER_ID with IP: $SERVER_IP"
+            echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+            echo "server_ip=$SERVER_IP" >> $GITHUB_OUTPUT
+            echo "server_image=$IMAGE" >> $GITHUB_OUTPUT
+            echo "server_region=$REGION" >> $GITHUB_OUTPUT
+            
+            CREATE_SUCCESS=true
+          done
+          
+          if [ $CREATE_SUCCESS = false ]; then
+            echo "❌ Failed to create server after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+          
+          #  Wait for server to be fully ready using proven timing
+          echo "⏳ Waiting for server boot using FKS proven timing patterns..."
+          
+          # Step 1: Wait for server status to be "running" (FKS pattern)
+          echo "🔍 Step 1: Waiting for server status to be 'running'..."
+          for status_check in {1..20}; do
+            SERVER_STATUS=$(linode-cli linodes list --text --no-header --format="id,status" | grep "^$SERVER_ID" | cut -f2 || echo "unknown")
+            echo "   Status check $status_check/20: $SERVER_STATUS"
+            
+            if [ "$SERVER_STATUS" = "running" ]; then
+              echo "   ✅ Server is running"
+              break
+            fi
+            
+            if [ $status_check -lt 20 ]; then
+              sleep 15  # FKS standard interval
+            fi
+          done
+          
+          # Step 2: FKS pattern - Extended wait for OS initialization  
+          echo "⏳ Step 2: Waiting for OS initialization (FKS timing)..."
+          if [[ "$IMAGE" == *"ubuntu"* ]]; then
+            echo "   Ubuntu boot pattern: 2 minutes"
+            sleep 120
+          else
+            echo "   Arch Linux boot pattern: 2.5 minutes" 
+            sleep 150
+          fi
+          
+          # Step 3: FKS SSH readiness pattern with robust authentication testing
+          echo "🔍 Step 3: Testing SSH readiness using FKS proven pattern..."
+          
+          SSH_READY=false
+          MAX_SSH_ATTEMPTS=40  # FKS uses 40 attempts
+          
+          for attempt in $(seq 1 $MAX_SSH_ATTEMPTS); do
+            echo "⏳ SSH test attempt $attempt/$MAX_SSH_ATTEMPTS..."
+            
+            # Test basic connectivity first
+            if timeout 10 bash -c "echo >/dev/tcp/$SERVER_IP/22" 2>/dev/null; then
+              echo "   ✓ SSH port 22 is accessible"
+              
+              # Test root authentication (FKS pattern)
+              if timeout 15 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SERVER_IP "echo 'SSH authentication successful'" 2>/dev/null; then
+                echo "   ✅ SSH authentication successful - server ready!"
+                SSH_READY=true
+                break
+              else
+                echo "   ⚠️ SSH port open but authentication failed - server still initializing"
+              fi
+            else
+              echo "   ⚠️ SSH port not accessible yet"
+            fi
+            
+            if [ $attempt -lt $MAX_SSH_ATTEMPTS ]; then
+              echo "   ⏳ Waiting 15 seconds before next attempt..."
+              sleep 15
+            fi
+          done
+          
+          if [ "$SSH_READY" = "false" ]; then
+            echo "❌ SSH never became ready after $MAX_SSH_ATTEMPTS attempts (~10 minutes)"
+            echo "   Server ID: $SERVER_ID"
+            echo "   Server IP: $SERVER_IP" 
+            echo "   This indicates a server initialization issue"
+            
+            # Get final status for debugging
+            SERVER_STATUS=$(linode-cli linodes list --text --no-header --format="id,status" | grep "^$SERVER_ID" | cut -f2 || echo "unknown")
+            echo "   Final server status: $SERVER_STATUS"
+            
+            # Cleanup failed server
+            echo "🗑️ Cleaning up failed server..."
+            linode-cli linodes delete $SERVER_ID 2>/dev/null || echo "   ⚠️ Failed to delete server"
+            
+            exit 1
+          fi
+          
+          echo "✅ Server is fully ready for Stage 1 setup!"
+          echo "📋 Server Details:"
+          echo "   ID: $SERVER_ID"
+          echo "   IP: $SERVER_IP"
+          echo "   Image: $IMAGE"
+          echo "   Region: $REGION"
+          echo "   SSH: Ready for deployment"
+
+      - name: Get server details
+        id: server_details
+        run: |
+          echo "🔍 Determining server details for deployment..."
+          
+          if [ "${{ steps.check_server.outputs.server_exists }}" == "true" ]; then
+            echo "📋 Using existing server details..."
+            SERVER_ID="${{ steps.check_server.outputs.server_id }}"
+            SERVER_IP="${{ steps.check_server.outputs.server_ip }}"
+            echo "   Existing server ID: $SERVER_ID"
+            echo "   Existing server IP: $SERVER_IP"
+          else
+            echo "📋 Using newly created server details..."
+            SERVER_ID="${{ steps.create_server.outputs.server_id }}"
+            SERVER_IP="${{ steps.create_server.outputs.server_ip }}"
+            echo "   New server ID: $SERVER_ID"
+            echo "   New server IP: $SERVER_IP"
+            
+            # Double-check the server IP by querying Linode CLI
+            if [ -n "$SERVER_ID" ]; then
+              echo "🔍 Verifying server IP via Linode CLI..."
+              VERIFIED_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+              if [ -n "$VERIFIED_IP" ] && [ "$VERIFIED_IP" != "$SERVER_IP" ]; then
+                echo "⚠️ IP mismatch detected! Using verified IP: $VERIFIED_IP (was: $SERVER_IP)"
+                echo "   This indicates an IP tracking issue in the workflow"
+                SERVER_IP="$VERIFIED_IP"
+              else
+                echo "✅ Server IP verified: $SERVER_IP"
+              fi
+              
+              # Additional verification - show all servers to debug potential confusion
+              echo "🔍 Current servers in account for debugging:"
+              linode-cli linodes list --text --no-header --format="id,label,ipv4" | head -5
+            fi
+          fi
+          
+          # Validate we have valid server details
+          if [ -z "$SERVER_ID" ] || [ -z "$SERVER_IP" ]; then
+            echo "❌ Error: Missing server details"
+            echo "   SERVER_ID: '$SERVER_ID'"
+            echo "   SERVER_IP: '$SERVER_IP'"
+            exit 1
+          fi
+          
+          # Validate IP format
+          if [[ ! "$SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ Error: Invalid IP format: '$SERVER_IP'"
+            exit 1
+          fi
+          
+          echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+          echo "server_ip=$SERVER_IP" >> $GITHUB_OUTPUT
+          echo "✅ Server details confirmed: $SERVER_ID @ $SERVER_IP"
+          
+          # Persist IP to environment for all subsequent jobs
+          echo "CONFIRMED_SERVER_IP=$SERVER_IP" >> $GITHUB_ENV
+          echo "CONFIRMED_SERVER_ID=$SERVER_ID" >> $GITHUB_ENV
+
+  # ============================================================================
+  # Deploy NGINX
+  # ============================================================================
+  deploy-nginx:
+    name: 🚀 Deploy NGINX
+    runs-on: ubuntu-latest
+    needs: [preflight-checks, infrastructure-check, create-nginx-server, build-and-push-images, destroy-nginx-server]
+    if: |
+      always() && 
+      needs.preflight-checks.outputs.deploy_nginx == 'true' && 
+      needs.preflight-checks.outputs.secrets_validated == 'true' && 
+      (needs.infrastructure-check.outputs.nginx-server-exists == 'true' || needs.create-nginx-server.result == 'success') &&
+      (needs.build-and-push-images.result == 'success' || needs.build-and-push-images.result == 'skipped') &&
+      (needs.destroy-nginx-server.result == 'success' || needs.destroy-nginx-server.result == 'skipped')
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Debug Deployment Target
+        run: |
+          echo "=== NGINX DEPLOYMENT TARGET ==="
+          echo "Infrastructure check - server exists: ${{ needs.infrastructure-check.outputs.nginx-server-exists }}"
+          echo "Server creation job result: ${{ needs.create-nginx-server.result }}"
+          echo "Force fresh deployment: ${{ github.event.inputs.force_fresh_deployment }}"
+          echo "Destroy job result: ${{ needs.destroy-nginx-server.result }}"
+          echo ""
+          
+          echo "🔍 JOB DEPENDENCY ANALYSIS:"
+          echo "   infrastructure-check.nginx-server-exists: ${{ needs.infrastructure-check.outputs.nginx-server-exists }}"
+          echo "   create-nginx-server.result: ${{ needs.create-nginx-server.result }}"
+          echo "   destroy-nginx-server.result: ${{ needs.destroy-nginx-server.result }}"
+          echo ""
+          
+          if [[ "${{ needs.create-nginx-server.result }}" == "success" ]]; then
+            echo "🆕 Deploying to NEWLY CREATED server"
+            echo "   Server has completed Stage 1 + Stage 2 setup"
+            echo "   Tailscale should be connected with assigned IP"
+            echo "   actions_user account is configured"
+            echo "   Docker and all services are ready"
+          elif [[ "${{ needs.infrastructure-check.outputs.nginx-server-exists }}" == "true" ]]; then
+            echo "♻️ Deploying to EXISTING server"
+            echo "   Server should already have Stage 1+2 completed"
+            echo "   Will verify Tailscale IP and connectivity"
+            echo ""
+            echo "⚠️ WARNING: If force_fresh_deployment=true, this suggests:"
+            echo "   - destroy job didn't run (check conditions)"
+            echo "   - create job didn't run (check dependencies)"
+            echo "   - deploy is incorrectly using existing server"
+          else
+            echo "❓ Unknown deployment target"
+          fi
+          echo "==============================="
+
+      - name: Setup Linode CLI
+        uses: linode/action-linode-cli@v1
+        with:
+          token: ${{ secrets.LINODE_CLI_TOKEN }}
+
+      - name: Get server details
+        id: server_details
+        run: |
+          echo "🔍 Getting server details with IP verification..."
+          
+          # First try to get from previous job outputs
+          if [ "${{ needs.infrastructure-check.outputs.nginx-server-exists }}" == "true" ]; then
+            SERVER_ID="${{ needs.infrastructure-check.outputs.nginx-server-id }}"
+            SERVER_IP="${{ needs.infrastructure-check.outputs.nginx-server-ip }}"
+            echo "📋 From infrastructure check: $SERVER_ID @ $SERVER_IP"
+          else
+            SERVER_ID="${{ needs.create-nginx-server.outputs.server-id }}"
+            SERVER_IP="${{ needs.create-nginx-server.outputs.server-ip }}"
+            echo "📋 From server creation: $SERVER_ID @ $SERVER_IP"
+          fi
+          
+          # Always verify IP with Linode CLI as authoritative source
+          if [ -n "$SERVER_ID" ]; then
+            echo "🔍 Verifying server IP via Linode CLI (authoritative)..."
+            LINODE_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+            
+            if [ -n "$LINODE_IP" ] && [[ "$LINODE_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+              if [ "$LINODE_IP" != "$SERVER_IP" ]; then
+                echo "⚠️ IP discrepancy detected!"
+                echo "   Workflow IP: $SERVER_IP"
+                echo "   Linode CLI IP: $LINODE_IP"
+                echo "   Using authoritative Linode CLI IP: $LINODE_IP"
+                SERVER_IP="$LINODE_IP"
+              else
+                echo "✅ IP verified with Linode CLI: $SERVER_IP"
+              fi
+            else
+              echo "❌ Could not verify IP via Linode CLI"
+              echo "   Using workflow IP: $SERVER_IP"
+            fi
+          fi
+          
+          # Validate final IP
+          if [ -z "$SERVER_IP" ] || [[ ! "$SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ Invalid or missing server IP: '$SERVER_IP'"
+            exit 1
+          fi
+          
+          echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+          echo "server_ip=$SERVER_IP" >> $GITHUB_OUTPUT
+          echo "✅ Using NGINX server: $SERVER_ID with verified IP: $SERVER_IP"
+
+      - name: Setup SSH connection
+        run: |
+          echo "=== Setting up SSH connection ==="
+          
+          # Validate server IP with additional verification
+          SERVER_IP="${{ steps.server_details.outputs.server_ip }}"
+          SERVER_ID="${{ steps.server_details.outputs.server_id }}"
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ Error: Server IP is empty"
+            exit 1
+          fi
+          
+          echo "🔗 Setting up SSH for server: $SERVER_ID @ $SERVER_IP"
+          
+          # Final IP verification before SSH attempts
+          echo "🔍 Final IP verification before SSH attempts..."
+          if [ -n "$SERVER_ID" ]; then
+            FINAL_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+            if [ -n "$FINAL_IP" ] && [ "$FINAL_IP" != "$SERVER_IP" ]; then
+              echo "❌ CRITICAL: IP still wrong before SSH!"
+              echo "   Workflow thinks IP is: $SERVER_IP"
+              echo "   Linode CLI says IP is: $FINAL_IP"
+              echo "   This will cause SSH failures!"
+              echo ""
+              echo "🔍 Debugging info:"
+              echo "   Server ID: $SERVER_ID"
+              echo "   All servers in account:"
+              linode-cli linodes list --text --format="id,label,ipv4" | head -10
+              exit 1
+            else
+              echo "✅ Final IP verification passed: $SERVER_IP"
+            fi
+          fi
+          
+          # Install sshpass for password authentication
+          echo "📦 Installing sshpass..."
+          sudo apt-get update && sudo apt-get install -y sshpass
+          
+          echo "✅ SSH connection setup completed"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Stage 1 Setup ()
+        if: needs.create-nginx-server.outputs.server-id != '' && needs.create-nginx-server.outputs.server-id != null
+        run: |
+          echo "=== FKS NGINX Stage 1 Setup -  ==="
+          
+          # Get confirmed server details from create step
+          SERVER_ID="${{ needs.create-nginx-server.outputs.server-id }}"
+          SERVER_IP="${{ needs.create-nginx-server.outputs.server-ip }}"
+          
+          echo "📋 Using Stage 1 with server: $SERVER_ID @ $SERVER_IP"
+          
+          # Transfer Stage 1 script from repository
+          echo "📤 Transferring Stage 1 script to server..."
+          
+          # Verify we have the FKS stage scripts
+          if [ ! -f "scripts/stage1-setup.sh" ] || [ ! -f "scripts/stage2-setup.sh" ]; then
+            echo "❌ FKS stage scripts not found in repository"
+            echo "Expected: scripts/stage1-setup.sh and scripts/stage2-setup.sh"
+            exit 1
+          fi
+          
+          echo "✅ FKS stage scripts found"
+          
+          # Create environment substitution for Stage 1 script
+          cp scripts/stage1-setup.sh stage1_setup_env.sh
+          
+          # Substitute GitHub secrets into the script
+          sed -i "s/\$ACTIONS_USER_PASSWORD/${{ secrets.ACTIONS_USER_PASSWORD }}/g" stage1_setup_env.sh
+          sed -i "s/\$NETDATA_CLAIM_TOKEN/${{ secrets.NETDATA_CLAIM_TOKEN }}/g" stage1_setup_env.sh
+          sed -i "s/\$NETDATA_CLAIM_ROOM/${{ secrets.NETDATA_CLAIM_ROOM }}/g" stage1_setup_env.sh
+          sed -i "s/\$TAILSCALE_AUTH_KEY/${{ secrets.TAILSCALE_AUTH_KEY }}/g" stage1_setup_env.sh
+          
+          # Also prepare Stage 2 script with environment substitution
+          cp scripts/stage2-setup.sh stage2_setup_env.sh
+          sed -i "s/\$NETDATA_CLAIM_TOKEN/${{ secrets.NETDATA_CLAIM_TOKEN }}/g" stage2_setup_env.sh
+          sed -i "s/\$NETDATA_CLAIM_ROOM/${{ secrets.NETDATA_CLAIM_ROOM }}/g" stage2_setup_env.sh  
+          sed -i "s/\$TAILSCALE_AUTH_KEY/${{ secrets.TAILSCALE_AUTH_KEY }}/g" stage2_setup_env.sh
+          
+          chmod +x stage1_setup_env.sh stage2_setup_env.sh
+          
+          # Test SSH connectivity using FKS pattern
+          echo "🔍 Testing SSH connectivity using FKS pattern..."
+          SSH_READY=false
+          MAX_ATTEMPTS=10
+          
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "🔌 SSH test attempt $attempt/$MAX_ATTEMPTS..."
+            
+            if timeout 15 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SERVER_IP "echo 'SSH ready'" 2>/dev/null; then
+              echo "✅ SSH authentication successful!"
+              SSH_READY=true
+              break
+            else
+              echo "⏳ SSH not ready, waiting 15 seconds..."
+              sleep 15
+            fi
+          done
+          
+          if [ "$SSH_READY" = "false" ]; then
+            echo "❌ SSH not ready after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+          
+          # Transfer Stage 1 and Stage 2 scripts using FKS pattern
+          echo "📤 Transferring Stage scripts..."
+          
+          # Upload Stage 1 script
+          if ! sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 stage1_setup_env.sh root@$SERVER_IP:/tmp/stage1_setup.sh; then
+            echo "❌ Failed to upload Stage 1 script"
+            exit 1
+          fi
+          
+          # Upload Stage 2 script to proper location for Stage 1 to use
+          if ! sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 stage2_setup_env.sh root@$SERVER_IP:/root/stage2_setup.sh; then
+            echo "❌ Failed to upload Stage 2 script"
+            exit 1
+          fi
+          
+          echo "✅ Stage scripts transferred successfully"
+          
+          # Execute Stage 1 setup (following proven pattern)
+          echo "🚀 Executing Stage 1 setup..."
+          
+          # The Stage 1 script handles reboot and Stage 2 setup automatically
+          # SSH disconnection (exit code 255) during reboot is expected and means success
+          set +e  # Don't exit on error since reboot will cause SSH disconnection
+          sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 root@$SERVER_IP "chmod +x /tmp/stage1_setup.sh && /tmp/stage1_setup.sh" 2>&1
+          SETUP_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
+          
+          # Handle expected disconnection during reboot (FKS pattern)
+          if [ $SETUP_EXIT_CODE -eq 255 ]; then
+            echo "✅ Stage 1 completed - server rebooting (SSH disconnection expected)"
+          elif [ $SETUP_EXIT_CODE -eq 0 ]; then
+            echo "✅ Stage 1 completed successfully"
+          else
+            echo "❌ Stage 1 failed with exit code: $SETUP_EXIT_CODE"
+            exit $SETUP_EXIT_CODE
+          fi
+          
+          echo "🔄 Stage 1 complete - Stage 2 will run automatically after reboot"
+          
+          # CRITICAL: Test SSH connectivity before attempting upload
+          echo "🔍 Testing SSH connectivity to $SERVER_IP..."
+          
+          SSH_TEST_COUNT=0
+          SSH_MAX_ATTEMPTS=10
+          SSH_CONNECTED=false
+          
+          while [ $SSH_TEST_COUNT -lt $SSH_MAX_ATTEMPTS ] && [ "$SSH_CONNECTED" = "false" ]; do
+            SSH_TEST_COUNT=$((SSH_TEST_COUNT + 1))
+            echo "🔌 SSH test attempt $SSH_TEST_COUNT/$SSH_MAX_ATTEMPTS..."
+            
+            # Test basic connectivity first
+            if timeout 10 bash -c "echo >/dev/tcp/$SERVER_IP/22" 2>/dev/null; then
+              echo "   ✓ SSH port 22 is accessible"
+              
+              # Test authentication
+              if timeout 15 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SERVER_IP "echo 'SSH authentication test successful'" 2>/dev/null; then
+                echo "   ✅ SSH authentication successful!"
+                SSH_CONNECTED=true
+                break
+              else
+                echo "   ⚠️ SSH port open but authentication failed"
+              fi
+            else
+              echo "   ⚠️ SSH port not accessible"
+            fi
+            
+            if [ $SSH_TEST_COUNT -lt $SSH_MAX_ATTEMPTS ]; then
+              echo "   ⏳ Waiting 30 seconds before retry..."
+              sleep 30
+            fi
+          done
+          
+          if [ "$SSH_CONNECTED" = "false" ]; then
+            echo "❌ CRITICAL: Could not establish SSH connection to $SERVER_IP after $SSH_MAX_ATTEMPTS attempts"
+            echo "🔍 Final debugging info:"
+            echo "   Server ID: $SERVER_ID"
+            echo "   Server IP: $SERVER_IP"
+            echo "   Attempting to get server status..."
+            linode-cli linodes list --text --format="id,label,status,ipv4" | grep "^$SERVER_ID" || echo "Server not found"
+            exit 1
+          fi
+          
+          # This duplicate Stage 1 code has been removed - Stage 1 already completed successfully
+          # Moving directly to Stage 2 wait
+
+      - name: Wait for Stage 2 Completion ()
+        if: needs.create-nginx-server.outputs.server-id != '' && needs.create-nginx-server.outputs.server-id != null
+        run: |
+          echo "=== Waiting for Stage 2 Completion ==="
+          echo "Following FKS proven reboot and Stage 2 completion pattern"
+          
+          # Get server details from create step
+          SERVER_ID="${{ needs.create-nginx-server.outputs.server-id }}"
+          SERVER_IP="${{ needs.create-nginx-server.outputs.server-ip }}"
+          
+          echo "📋 Monitoring Stage 2 for server: $SERVER_ID @ $SERVER_IP"
+          
+          #  Wait for reboot (3 minutes proven timing)
+          echo "⏳ Step 1: Waiting for server reboot (FKS timing: 3 minutes)..."
+          sleep 180
+          
+          #  Wait for SSH to come back online after reboot
+          echo "🔍 Step 2: Waiting for SSH to be available after reboot..."
+          SSH_READY=false
+          MAX_ATTEMPTS=30  # FKS uses 30 attempts for post-reboot
+          
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "⏳ SSH reconnection attempt $attempt/$MAX_ATTEMPTS..."
+            
+            # Test SSH connectivity
+            if timeout 10 bash -c "echo >/dev/tcp/$SERVER_IP/22" 2>/dev/null; then
+              echo "   ✓ SSH port accessible"
+              
+              # Test authentication with actions_user (preferred after Stage 1)
+              if timeout 15 sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null actions_user@$SERVER_IP "echo 'SSH reconnected after reboot'" 2>/dev/null; then
+                echo "   ✅ SSH authentication successful with actions_user after reboot"
+                SSH_READY=true
+                break
+              # Fallback to root if actions_user not ready yet
+              elif timeout 15 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SERVER_IP "echo 'SSH reconnected after reboot'" 2>/dev/null; then
+                echo "   ✅ SSH authentication successful with root after reboot"
+                SSH_READY=true
+                break
+              else
+                echo "   ⚠️ SSH port open but authentication failed"
+              fi
+            else
+              echo "   ⚠️ SSH port not accessible yet"
+            fi
+            
+            if [ $attempt -lt $MAX_ATTEMPTS ]; then
+              echo "   ⏳ Waiting 15 seconds..."
+              sleep 15
+            fi
+          done
+          
+          if [ "$SSH_READY" = "false" ]; then
+            echo "❌ SSH not available after reboot within expected timeframe"
+            exit 1
+          fi
+          
+          #  Wait for Stage 2 systemd service to complete
+          echo "🔍 Step 3: Monitoring Stage 2 systemd service completion..."
+          STAGE2_COMPLETE=false
+          MAX_STAGE2_WAIT=40  # Increased attempts but with shorter intervals
+          
+          # Determine which user to use for monitoring
+          MONITOR_USER="actions_user"
+          MONITOR_PASS="${{ secrets.ACTIONS_USER_PASSWORD }}"
+          
+          # Test if actions_user is available, fallback to root
+          if ! timeout 5 sshpass -p "$MONITOR_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 $MONITOR_USER@$SERVER_IP "echo 'test'" 2>/dev/null >/dev/null; then
+            MONITOR_USER="root"
+            MONITOR_PASS="${{ secrets.NGINX_ROOT_PASSWORD }}"
+          fi
+          
+          echo "📊 Monitoring Stage 2 via $MONITOR_USER@$SERVER_IP..."
+          
+          for attempt in $(seq 1 $MAX_STAGE2_WAIT); do
+            echo "⏳ Stage 2 monitoring attempt $attempt/$MAX_STAGE2_WAIT..."
+            
+            # Check for Stage 2 completion marker (FKS pattern)
+            if sshpass -p "$MONITOR_PASS" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $MONITOR_USER@$SERVER_IP "test -f /tmp/nginx-stage2-complete" 2>/dev/null; then
+              echo "   ✅ Stage 2 completion marker found"
+              STAGE2_COMPLETE=true
+              break
+            else
+              echo "   ⏳ Stage 2 still running..."
+              
+              # Check systemd service status for debugging (FKS pattern)
+              SERVICE_STATUS=$(sshpass -p "$MONITOR_PASS" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $MONITOR_USER@$SERVER_IP "systemctl is-active nginx-stage2.service 2>/dev/null || echo 'unknown'" 2>/dev/null || echo "ssh-failed")
+              echo "      nginx-stage2.service status: $SERVICE_STATUS"
+              
+              # If service is no longer active, check if it completed successfully
+              if [ "$SERVICE_STATUS" = "inactive" ] || [ "$SERVICE_STATUS" = "unknown" ]; then
+                echo "      🔍 Service inactive, checking if it completed successfully..."
+                EXIT_STATUS=$(sshpass -p "$MONITOR_PASS" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $MONITOR_USER@$SERVER_IP "systemctl show nginx-stage2.service --property=ExecMainStatus --value 2>/dev/null || echo '1'" 2>/dev/null || echo "1")
+                if [ "$EXIT_STATUS" = "0" ]; then
+                  echo "      ✅ Service completed successfully, checking for completion marker..."
+                  # Give a moment for the completion marker to be created
+                  sleep 5
+                  continue
+                else
+                  echo "      ⚠️ Service may have failed (exit status: $EXIT_STATUS)"
+                fi
+              fi
+            fi
+            
+            if [ $attempt -lt $MAX_STAGE2_WAIT ]; then
+              # Use shorter intervals for faster detection
+              if [ $attempt -le 10 ]; then
+                echo "   ⏳ Waiting 10 seconds... (fast check phase)"
+                sleep 10
+              else
+                echo "   ⏳ Waiting 15 seconds..."
+                sleep 15
+              fi
+            fi
+          done
+          
+          if [ "$STAGE2_COMPLETE" = "false" ]; then
+            echo "❌ Stage 2 did not complete within expected timeframe"
+            echo "🔍 Gathering diagnostic information..."
+            
+            # Get service logs for debugging (FKS pattern)
+            echo "📋 nginx-stage2.service logs:"
+            sshpass -p "$MONITOR_PASS" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $MONITOR_USER@$SERVER_IP "journalctl -u nginx-stage2.service --no-pager -n 20" 2>/dev/null || echo "Could not retrieve logs"
+            
+            echo "⚠️ Continuing deployment - Stage 2 may complete in background"
+          fi
+          
+          #  Verify core services are ready
+          echo "🔍 Step 4: Verifying FKS core services..."
+          
+          # Get Tailscale IP (FKS pattern)
+          echo "📡 Checking Tailscale connectivity..."
+          TAILSCALE_IP=$(sshpass -p "$MONITOR_PASS" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $MONITOR_USER@$SERVER_IP "tailscale ip -4 2>/dev/null || echo ''" 2>/dev/null || echo "")
+          
+          if [ -n "$TAILSCALE_IP" ] && [[ "$TAILSCALE_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "✅ Tailscale connected with IP: $TAILSCALE_IP"
+            echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
+            echo "USE_TAILSCALE=true" >> $GITHUB_ENV
+          else
+            echo "⚠️ Tailscale not connected or IP not available: '$TAILSCALE_IP'"
+            echo "   Will use public IP for deployment"
+            echo "USE_TAILSCALE=false" >> $GITHUB_ENV
+          fi
+          
+          # Test actions_user access (critical for deployment)
+          echo "🔍 Step 5: Verifying actions_user access for deployment..."
+          if sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null actions_user@$SERVER_IP "echo 'actions_user access verified'" 2>/dev/null; then
+            echo "✅ actions_user account accessible for deployment"
+            echo "ACTIONS_USER_READY=true" >> $GITHUB_ENV
+          else
+            echo "⚠️ actions_user not accessible yet"
+            echo "   This may indicate Stage 2 is still completing"
+            echo "ACTIONS_USER_READY=false" >> $GITHUB_ENV
+          fi
+          
+          #  Service readiness summary
+          echo ""
+          echo "📊 Stage 2 Completion Summary:"
+          echo "=================================="
+          echo "✅ Server rebooted successfully"
+          echo "✅ SSH reconnected"
+          echo "$([ "$STAGE2_COMPLETE" = "true" ] && echo "✅" || echo "⚠️") Stage 2 completion: $STAGE2_COMPLETE"
+          echo "$([ -n "$TAILSCALE_IP" ] && echo "✅" || echo "⚠️") Tailscale IP: ${TAILSCALE_IP:-'Not available'}"
+          echo "$([ "${ACTIONS_USER_READY:-false}" = "true" ] && echo "✅" || echo "⚠️") actions_user ready: ${ACTIONS_USER_READY:-false}"
+          echo "=================================="
+          echo ""
+          echo "🚀 FKS deployment foundation ready!"
+          echo "   Primary deployment IP: $SERVER_IP"
+          echo "   Tailscale IP: ${TAILSCALE_IP:-'Not available'}"
+          echo "   Deployment user: actions_user"
+          
+          # Export final confirmed IP for subsequent steps
+          echo "CONFIRMED_SERVER_IP=$SERVER_IP" >> $GITHUB_ENV
+
+      - name: Check existing server readiness
+        if: needs.infrastructure-check.outputs.nginx-server-exists == 'true'
+        run: |
+          echo "=== Checking existing server readiness ==="
+          echo "ℹ️ Using existing server - no reboot required"
+          
+          # CRITICAL: Get the REAL server IP from Linode CLI for existing server too
+          echo "🔍 Getting REAL server details from Linode CLI..."
+          
+          # First try the server ID from previous steps
+          SERVER_ID="${{ steps.server_details.outputs.server_id }}"
+          echo "🔍 Looking for server ID from workflow: $SERVER_ID"
+          
+          # Get authoritative IP from Linode CLI using the tracked server ID
+          REAL_SERVER_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+          
+          # If that fails, look for the nginx server by name instead
+          if [ -z "$REAL_SERVER_IP" ] || [[ ! "$REAL_SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "⚠️ Server ID $SERVER_ID not found, searching by server name..."
+            
+            # Look for nginx server by name as fallback
+            NGINX_SERVER=$(linode-cli linodes list --text --no-header --format="id,label,ipv4" | grep "${{ env.NGINX_SERVER_NAME }}")
+            
+            if [ -n "$NGINX_SERVER" ]; then
+              SERVER_ID=$(echo "$NGINX_SERVER" | cut -f1)
+              REAL_SERVER_IP=$(echo "$NGINX_SERVER" | cut -f3 | cut -d',' -f1)
+              echo "✅ Found nginx server by name: $SERVER_ID @ $REAL_SERVER_IP"
+            else
+              echo "❌ CRITICAL: Could not find nginx server by ID or name"
+              echo "🔍 Available servers:"
+              linode-cli linodes list --text --format="id,label,ipv4" | head -10
+              exit 1
+            fi
+          fi
+          
+          # Final validation
+          if [ -z "$REAL_SERVER_IP" ] || [[ ! "$REAL_SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ CRITICAL: Could not get valid IP for existing server readiness check"
+            echo "   Server ID searched: ${{ steps.server_details.outputs.server_id }}"
+            echo "   Final server ID: $SERVER_ID"
+            echo "   Final server IP: $REAL_SERVER_IP"
+            echo "🔍 Debugging current servers:"
+            linode-cli linodes list --text --format="id,label,ipv4" | head -10
+            exit 1
+          fi
+          
+          echo "📋 VERIFIED Existing Server Details:"
+          echo "   ID: $SERVER_ID"
+          echo "   REAL IP (from Linode CLI): $REAL_SERVER_IP"
+          
+          # Use the REAL IP for connectivity test
+          SERVER_IP="$REAL_SERVER_IP"
+          
+          # Export the real IP to GitHub environment for all subsequent steps
+          echo "REAL_SERVER_IP=$REAL_SERVER_IP" >> $GITHUB_ENV
+          echo "CONFIRMED_SERVER_IP=$REAL_SERVER_IP" >> $GITHUB_ENV
+          
+          # Quick connectivity check with FKS pattern - try actions_user first, fallback to root
+          echo "🔍 Verifying SSH access to existing server..."
+          SERVER_ACCESSIBLE=false
+          
+          # Try actions_user first (preferred)
+          if timeout 15 sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 actions_user@$SERVER_IP "echo 'Existing server ready'" 2>/dev/null; then
+            echo "✅ Existing server is accessible via actions_user"
+            SERVER_ACCESSIBLE=true
+          # Fallback to root
+          elif timeout 15 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@$SERVER_IP "echo 'Existing server ready'" 2>/dev/null; then
+            echo "✅ Existing server is accessible via root"
+            SERVER_ACCESSIBLE=true
+          else
+            echo "⚠️ SSH access issues, but continuing..."
+          fi
+
+      - name: Get Tailscale IP ()
+        id: tailscale_ip
+        run: |
+          echo "=== Getting Tailscale IP () ==="
+          
+          # Use confirmed server IP from environment
+          SERVER_IP="$CONFIRMED_SERVER_IP"
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ CONFIRMED_SERVER_IP not set from previous steps"
+            exit 1
+          fi
+          
+          echo "📋 Using confirmed server IP: $SERVER_IP"
+          
+          # Check if Tailscale IP was already detected in Stage 2 completion
+          if [ "${USE_TAILSCALE:-false}" = "true" ] && [ -n "${TAILSCALE_IP:-}" ]; then
+            echo "✅ Using Tailscale IP from Stage 2: $TAILSCALE_IP"
+            echo "tailscale_ip=$TAILSCALE_IP" >> $GITHUB_OUTPUT
+          else
+            # Get Tailscale IP using confirmed credentials
+            echo "🔍 Retrieving Tailscale IP from server..."
+            
+            # Try actions_user first, fallback to root
+            if [ "${ACTIONS_USER_READY:-false}" = "true" ]; then
+              TAILSCALE_IP=$(timeout 15 sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o StrictHostKeyChecking=no actions_user@$SERVER_IP "tailscale ip -4 2>/dev/null" 2>/dev/null | head -1 | grep -E '^100\.' || echo "")
+            fi
+            
+            # Fallback to root if needed
+            if [ -z "$TAILSCALE_IP" ]; then
+              TAILSCALE_IP=$(timeout 15 sshpass -p "${{ secrets.NGINX_ROOT_PASSWORD }}" ssh -o StrictHostKeyChecking=no root@$SERVER_IP "tailscale ip -4 2>/dev/null" 2>/dev/null | head -1 | grep -E '^100\.' || echo "")
+            fi
+            
+            # Use server IP as fallback
+            if [ -z "$TAILSCALE_IP" ]; then
+              echo "⚠️ Could not get Tailscale IP, using server IP"
+              TAILSCALE_IP="$SERVER_IP"
+            else
+              echo "✅ Retrieved Tailscale IP: $TAILSCALE_IP"
+            fi
+            
+            echo "tailscale_ip=$TAILSCALE_IP" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Cloudflare DNS
+        run: |
+          echo "=== Updating Cloudflare DNS Records ==="
+          
+          # Install jq if not available
+          if ! command -v jq &> /dev/null; then
+            echo "Installing jq..."
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          
+          # Function to update or create DNS record
+          update_dns_record() {
+            local record_name="$1"
+            local record_ip="$2"
+            local record_ttl="${3:-300}"
+            
+            echo "📍 Processing DNS record: $record_name → $record_ip"
+            
+            # Skip ATS-managed records
+            if [[ "$record_name" == *".ats.7gram.xyz"* ]] || [[ "$record_name" == "ats.7gram.xyz" ]]; then
+              echo "⏭️ Skipping ATS-managed record: $record_name"
+              return 0
+            fi
+            
+            # Get existing record ID
+            RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records?name=$record_name" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json")
+            
+            RECORD_ID=$(echo "$RESPONSE" | jq -r '.result[0].id // empty')
+            
+            if [ -n "$RECORD_ID" ] && [ "$RECORD_ID" != "null" ] && [ "$RECORD_ID" != "" ]; then
+              echo "🔄 Updating existing record: $record_name (ID: $RECORD_ID)"
+              UPDATE_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records/$RECORD_ID" \
+                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                -H "Content-Type: application/json" \
+                --data '{
+                  "type": "A",
+                  "name": "'$record_name'",
+                  "content": "'$record_ip'",
+                  "ttl": '$record_ttl'
+                }')
+              
+              SUCCESS=$(echo "$UPDATE_RESPONSE" | jq -r '.success')
+              if [ "$SUCCESS" = "true" ]; then
+                echo "✅ Successfully updated $record_name"
+              else
+                echo "❌ Failed to update $record_name"
+                echo "   Error: $(echo "$UPDATE_RESPONSE" | jq -r '.errors[0].message // "Unknown error"')"
+              fi
+            else
+              echo "🆕 Creating new record: $record_name"
+              CREATE_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                -H "Content-Type: application/json" \
+                --data '{
+                  "type": "A",
+                  "name": "'$record_name'",
+                  "content": "'$record_ip'",
+                  "ttl": '$record_ttl'
+                }')
+              
+              SUCCESS=$(echo "$CREATE_RESPONSE" | jq -r '.success')
+              if [ "$SUCCESS" = "true" ]; then
+                echo "✅ Successfully created $record_name"
+              else
+                echo "❌ Failed to create $record_name"
+                echo "   Error: $(echo "$CREATE_RESPONSE" | jq -r '.errors[0].message // "Unknown error"')"
+              fi
+            fi
+          }
+          
+          # Update core nginx records to point to nginx server (Tailscale IP)
+          NGINX_IP="${{ steps.tailscale_ip.outputs.tailscale_ip }}"
+          
+          echo "🔄 Updating NGINX DNS records with Tailscale IP: $NGINX_IP"
+          
+          # Validate that we have a valid IP
+          if [[ ! "$NGINX_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ Invalid IP address: $NGINX_IP"
+            echo "   Cannot update DNS records with invalid IP"
+            exit 1
+          fi
+          
+          # Update nginx subdomain for direct access
+          update_dns_record "nginx.7gram.xyz" "$NGINX_IP" 300
+          
+          # Update root domain to point to nginx (primary entry point)
+          update_dns_record "7gram.xyz" "$NGINX_IP" 3600
+          
+          # Update wildcard to point to nginx (catch-all for subdomain routing)
+          # This will route all *.7gram.xyz through nginx reverse proxy
+          update_dns_record "*.7gram.xyz" "$NGINX_IP" 300
+          
+          # Update existing subdomains that currently point to old servers
+          # These should all route through nginx for proper load balancing
+          echo "🔄 Updating service subdomains to route through nginx..."
+          
+          # Core service subdomains
+          update_dns_record "abs.7gram.xyz" "$NGINX_IP" 300        # AudioBookShelf
+          update_dns_record "ai.7gram.xyz" "$NGINX_IP" 300         # Open WebUI
+          update_dns_record "api.7gram.xyz" "$NGINX_IP" 300        # API gateway
+          update_dns_record "auth.7gram.xyz" "$NGINX_IP" 300       # Authelia SSO
+          update_dns_record "calibre.7gram.xyz" "$NGINX_IP" 300    # Calibre server
+          update_dns_record "chat.7gram.xyz" "$NGINX_IP" 300       # Chat interface
+          update_dns_record "code.7gram.xyz" "$NGINX_IP" 300       # VS Code Server
+          update_dns_record "emby.7gram.xyz" "$NGINX_IP" 300       # Emby media server
+          update_dns_record "jellyfin.7gram.xyz" "$NGINX_IP" 300   # Jellyfin media server
+          update_dns_record "plex.7gram.xyz" "$NGINX_IP" 300       # Plex media server
+          update_dns_record "sonarr.7gram.xyz" "$NGINX_IP" 300     # TV automation
+          update_dns_record "radarr.7gram.xyz" "$NGINX_IP" 300     # Movie automation
+          update_dns_record "lidarr.7gram.xyz" "$NGINX_IP" 300     # Music automation
+          update_dns_record "jackett.7gram.xyz" "$NGINX_IP" 300    # Indexer proxy
+          update_dns_record "qbt.7gram.xyz" "$NGINX_IP" 300        # qBittorrent
+          update_dns_record "portainer.7gram.xyz" "$NGINX_IP" 300  # Container management
+          update_dns_record "grafana.7gram.xyz" "$NGINX_IP" 300    # Monitoring dashboards
+          update_dns_record "prometheus.7gram.xyz" "$NGINX_IP" 300 # Metrics collection
+          
+          # Additional service subdomains
+          update_dns_record "audiobooks.7gram.xyz" "$NGINX_IP" 300 # Readarr audiobooks
+          update_dns_record "calibreweb.7gram.xyz" "$NGINX_IP" 300 # Calibre Web interface
+          update_dns_record "comfy.7gram.xyz" "$NGINX_IP" 300      # ComfyUI
+          update_dns_record "dns.7gram.xyz" "$NGINX_IP" 300        # Pi-hole alias
+          update_dns_record "duplicati.7gram.xyz" "$NGINX_IP" 300  # Backup service
+          update_dns_record "ebooks.7gram.xyz" "$NGINX_IP" 300     # Readarr ebooks
+          update_dns_record "filebot.7gram.xyz" "$NGINX_IP" 300    # File organization
+          update_dns_record "grocy.7gram.xyz" "$NGINX_IP" 300      # Household management
+          update_dns_record "home.7gram.xyz" "$NGINX_IP" 300       # Home Assistant
+          update_dns_record "imap.7gram.xyz" "$NGINX_IP" 300       # IMAP server
+          update_dns_record "mail.7gram.xyz" "$NGINX_IP" 300       # Mail server
+          update_dns_record "mealie.7gram.xyz" "$NGINX_IP" 300     # Recipe management
+          update_dns_record "music.7gram.xyz" "$NGINX_IP" 300      # Music streaming
+          update_dns_record "nc.7gram.xyz" "$NGINX_IP" 300         # Nextcloud
+          update_dns_record "ollama.7gram.xyz" "$NGINX_IP" 300     # Ollama LLM backend
+          update_dns_record "pihole.7gram.xyz" "$NGINX_IP" 300     # Pi-hole DNS filtering
+          update_dns_record "remote.7gram.xyz" "$NGINX_IP" 300     # Remote access
+          update_dns_record "sd.7gram.xyz" "$NGINX_IP" 300         # Stable Diffusion
+          update_dns_record "smtp.7gram.xyz" "$NGINX_IP" 300       # SMTP server
+          update_dns_record "status.7gram.xyz" "$NGINX_IP" 300     # Status page
+          update_dns_record "uptime.7gram.xyz" "$NGINX_IP" 300     # Uptime monitoring
+          update_dns_record "vpn.7gram.xyz" "$NGINX_IP" 300        # VPN access point
+          update_dns_record "watchtower.7gram.xyz" "$NGINX_IP" 300 # Container updates
+          update_dns_record "whisper.7gram.xyz" "$NGINX_IP" 300    # Whisper speech-to-text
+          update_dns_record "wiki.7gram.xyz" "$NGINX_IP" 300       # Documentation wiki
+          update_dns_record "www.7gram.xyz" "$NGINX_IP" 300        # WWW
+          update_dns_record "youtube.7gram.xyz" "$NGINX_IP" 300    # YouTube-DL interface
+          
+          # Sync services 
+          update_dns_record "sync-desktop.7gram.xyz" "$NGINX_IP" 300   # Desktop Syncthing
+          update_dns_record "sync-freddy.7gram.xyz" "$NGINX_IP" 300    # Freddy Syncthing
+          update_dns_record "sync-oryx.7gram.xyz" "$NGINX_IP" 300      # Oryx Syncthing
+          update_dns_record "sync-sullivan.7gram.xyz" "$NGINX_IP" 300  # Sullivan Syncthing
+          
+          # Portainer instances
+          update_dns_record "portainer-freddy.7gram.xyz" "$NGINX_IP" 300    # Freddy Portainer
+          update_dns_record "portainer-sullivan.7gram.xyz" "$NGINX_IP" 300  # Sullivan Portainer
+          
+          echo ""
+          echo "=== DNS Configuration Complete ==="
+          echo "✅ Root domain (7gram.xyz) → nginx server ($NGINX_IP)"
+          echo "✅ All subdomains (*.7gram.xyz) → nginx server ($NGINX_IP)"  
+          echo "ℹ️ ATS subdomains (*.ats.7gram.xyz) → skipped (managed separately)"
+          echo "🔄 nginx will proxy requests to backend servers based on subdomain"
+          echo ""
+
+      - name: Deploy application ()
+        run: |
+          echo "📦 Starting NGINX application deployment using FKS pattern..."
+          
+          # Use confirmed server IP from environment
+          SERVER_IP="$CONFIRMED_SERVER_IP"
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ CONFIRMED_SERVER_IP not set from previous steps"
+            exit 1
+          fi
+          
+          echo "📋 Using confirmed server IP for deployment: $SERVER_IP"
+          
+          # Install rsync on GitHub Actions runner
+          sudo apt-get update && sudo apt-get install -y rsync
+          
+          # Determine deployment user and credentials (FKS pattern)
+          if [ "${ACTIONS_USER_READY:-false}" = "true" ]; then
+            DEPLOY_USER="actions_user"
+            DEPLOY_PATH="/home/actions_user/nginx-app"
+            SSH_PASS="${{ secrets.ACTIONS_USER_PASSWORD }}"
+            echo "✅ Using actions_user for deployment (FKS preferred)"
+          else
+            DEPLOY_USER="root"
+            DEPLOY_PATH="/root/nginx-app"
+            SSH_PASS="${{ secrets.NGINX_ROOT_PASSWORD }}"
+            echo "⚠️ Using root for deployment (actions_user not ready)"
+          fi
+          
+          echo "� Deploying to: $DEPLOY_USER@$SERVER_IP:$DEPLOY_PATH"
+          
+          # Create deployment directory
+          echo "📁 Creating deployment directory..."
+          if ! sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"; then
+            echo "❌ Failed to create deployment directory"
+            exit 1
+          fi
+          
+          # Install required packages on target server (FKS pattern)
+          echo "📦 Installing required packages on target server..."
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_IP << 'INSTALL_PACKAGES'
+          echo "📦 Installing rsync and other required packages..."
+          
+          # Detect package manager and install rsync
+          if command -v pacman >/dev/null 2>&1; then
+            echo "🐧 Detected Arch Linux - using pacman"
+            pacman -Sy --noconfirm rsync tar gzip || echo "⚠️ Some packages may already be installed"
+          elif command -v apt-get >/dev/null 2>&1; then
+            echo "🐧 Detected Ubuntu/Debian - using apt"
+            apt-get update && apt-get install -y rsync tar gzip || echo "⚠️ Some packages may already be installed"
+          else
+            echo "⚠️ Unknown package manager - rsync may not be available"
+          fi
+          
+          echo "✅ Package installation completed"
+          INSTALL_PACKAGES
+          
+          # Copy application files (FKS simplified)
+          echo "📦 Copying application files using FKS pattern..."
+          
+          # Single rsync deployment (FKS approach - simple and effective)
+          echo "� Deploying via rsync..."
+          if ! rsync -avz --progress --exclude='.git' --exclude='node_modules' --exclude='.github' \
+               -e "sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no" \
+               ./ $DEPLOY_USER@$SERVER_IP:$DEPLOY_PATH/; then
+            echo "❌ Rsync deployment failed"
+            exit 1
+          fi
+          
+          echo "✅ Files transferred successfully"
+            
+          
+          # Make scripts executable (FKS pattern)
+          echo "� Making scripts executable..."
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_IP \
+            "find $DEPLOY_PATH -name '*.sh' -type f -exec chmod +x {} \;"
+          
+          
+          # Create environment file with pre-built image info (FKS pattern)
+          NGINX_IMAGE="${{ needs.build-and-push-images.outputs.nginx-image }}"
+          if [ -z "$NGINX_IMAGE" ]; then
+            # Fallback to latest if no specific build
+            NGINX_IMAGE="${{ secrets.DOCKER_USERNAME }}/nginx:latest"
+          fi
+          
+          cat << ENV_CONFIG_END > .env.prod
+          NODE_ENV=production
+          DOMAIN_NAME=${{ env.NGINX_DOMAIN_NAME }}
+          TZ=America/Toronto
+          TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}
+          CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID=${{ secrets.CLOUDFLARE_ZONE_ID }}
+          SSL_EMAIL=${{ secrets.SSL_EMAIL }}
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN=${{ secrets.DOCKER_TOKEN }}
+          SULLIVAN_HOST=sullivan.tailfef10.ts.net
+          FREDDY_HOST=freddy.tailfef10.ts.net
+          NETDATA_CLAIM_TOKEN=${{ secrets.NETDATA_CLAIM_TOKEN }}
+          NETDATA_CLAIM_ROOM=${{ secrets.NETDATA_CLAIM_ROOM }}
+          NGINX_IMAGE=$NGINX_IMAGE
+          BUILD_TIMESTAMP=${{ needs.build-and-push-images.outputs.build-timestamp }}
+          ENV_CONFIG_END
+          
+          echo "🐳 Using pre-built image: $NGINX_IMAGE"
+          
+          # Transfer environment file with proper error handling
+          echo "📤 Transferring environment file..."
+          if ! sshpass -p "$SSH_PASS" scp -o StrictHostKeyChecking=no .env.prod $DEPLOY_USER@$SERVER_IP:$DEPLOY_PATH/.env; then
+            echo "❌ Failed to transfer environment file"
+            exit 1
+          fi
+          
+          echo "✅ Application deployment completed successfully"
+          
+          # Create docker-compose override for production with pre-built images
+          NGINX_IMAGE="${{ needs.build-and-push-images.outputs.nginx-image }}"
+          if [ -z "$NGINX_IMAGE" ]; then
+            NGINX_IMAGE="${{ secrets.DOCKER_USERNAME }}/nginx:latest"
+          fi
+          
+          cat << COMPOSE_OVERRIDE_END > docker-compose.override.yml
+          services:
+            nginx:
+              image: $NGINX_IMAGE
+              pull_policy: always
+              environment:
+                - BUILD_TIMESTAMP=${{ needs.build-and-push-images.outputs.build-timestamp }}
+          COMPOSE_OVERRIDE_END
+          
+          # Transfer override file
+          echo "📤 Transferring production docker-compose override..."
+          if ! sshpass -p "$SSH_PASS" scp -o StrictHostKeyChecking=no docker-compose.override.yml $DEPLOY_USER@$SERVER_IP:$DEPLOY_PATH/; then
+            echo "⚠️ Failed to transfer override file, using default compose"
+          else
+            echo "✅ Production override applied - using pre-built image: $NGINX_IMAGE"
+          fi
+
+      - name: Setup Self-Signed SSL Certificates
+        run: |
+          echo "🔒 Setting up self-signed SSL certificates for immediate HTTPS..."
+          
+          # Use confirmed server IP from environment
+          SERVER_IP="$CONFIRMED_SERVER_IP"
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ CONFIRMED_SERVER_IP not set from previous steps"
+            exit 1
+          fi
+          
+          echo "📋 Using confirmed server IP: $SERVER_IP"
+          
+          # Determine deployment user and credentials (FKS pattern)
+          if [ "${ACTIONS_USER_READY:-false}" = "true" ]; then
+            DEPLOY_USER="actions_user"
+            DEPLOY_PATH="/home/actions_user/nginx-app"
+            SSH_PASS="${{ secrets.ACTIONS_USER_PASSWORD }}"
+            echo "✅ Using actions_user for SSL setup (FKS preferred)"
+          else
+            DEPLOY_USER="root"
+            DEPLOY_PATH="/root/nginx-app"
+            SSH_PASS="${{ secrets.NGINX_ROOT_PASSWORD }}"
+            echo "⚠️ Using root for SSL setup (actions_user not ready)"
+          fi
+          
+          # Generate self-signed certificates on the server
+          echo "🔐 Generating self-signed SSL certificates..."
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_IP << 'SSL_SETUP'
+          
+          # Create SSL directories
+          sudo mkdir -p /etc/nginx/ssl
+          sudo mkdir -p /var/www/certbot
+          
+          # Set working directory
+          cd /etc/nginx/ssl
+          
+          # Generate private key
+          echo "🔑 Generating private key..."
+          sudo openssl genrsa -out 7gram.xyz.key 2048
+          
+          # Create certificate configuration
+          sudo tee openssl.conf > /dev/null << 'SSL_CONFIG'
+          [req]
+          default_bits = 2048
+          prompt = no
+          default_md = sha256
+          distinguished_name = dn
+          req_extensions = v3_req
+          
+          [dn]
+          C=US
+          ST=State
+          L=City
+          O=Organization
+          CN=7gram.xyz
+          
+          [v3_req]
+          basicConstraints = CA:FALSE
+          keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+          subjectAltName = @alt_names
+          
+          [alt_names]
+          DNS.1 = 7gram.xyz
+          DNS.2 = *.7gram.xyz
+          DNS.3 = www.7gram.xyz
+          DNS.4 = nginx.7gram.xyz
+          DNS.5 = localhost
+          IP.1 = 127.0.0.1
+          SSL_CONFIG
+          
+          # Generate certificate signing request
+          echo "📝 Generating certificate signing request..."
+          sudo openssl req -new -key 7gram.xyz.key -out 7gram.xyz.csr -config openssl.conf
+          
+          # Generate self-signed certificate (valid for 365 days)
+          echo "🎯 Generating self-signed certificate..."
+          sudo openssl x509 -req -in 7gram.xyz.csr -signkey 7gram.xyz.key -out 7gram.xyz.crt -days 365 -extensions v3_req -extfile openssl.conf
+          
+          # Create fullchain for nginx (self-signed cert = fullchain in this case)
+          sudo cp 7gram.xyz.crt fullchain.pem
+          sudo cp 7gram.xyz.key privkey.pem
+          
+          # Set proper permissions
+          sudo chmod 644 *.crt *.pem
+          sudo chmod 600 *.key
+          sudo chown root:root /etc/nginx/ssl/*
+          
+          # Verify certificate
+          echo "✅ SSL certificate generated successfully!"
+          echo "📋 Certificate details:"
+          sudo openssl x509 -in 7gram.xyz.crt -text -noout | grep -E "(Subject:|DNS:|Not After)"
+          
+          SSL_SETUP
+          
+          echo "✅ Self-signed SSL certificates generated and configured"
+
+      - name: Configure NGINX for HTTPS
+        run: |
+          echo "🔧 Configuring NGINX for HTTPS with self-signed certificates..."
+          
+          # Use confirmed server IP from environment
+          SERVER_IP="$CONFIRMED_SERVER_IP"
+          
+          # Determine deployment user and credentials (FKS pattern)
+          if [ "${ACTIONS_USER_READY:-false}" = "true" ]; then
+            DEPLOY_USER="actions_user"
+            DEPLOY_PATH="/home/actions_user/nginx-app"
+            SSH_PASS="${{ secrets.ACTIONS_USER_PASSWORD }}"
+          else
+            DEPLOY_USER="root"
+            DEPLOY_PATH="/root/nginx-app"
+            SSH_PASS="${{ secrets.NGINX_ROOT_PASSWORD }}"
+          fi
+          
+          # Switch to HTTPS configuration
+          echo "🔄 Switching from HTTP-only to HTTPS configuration..."
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_IP << HTTPS_CONFIG
+          
+          # Set the deployment path explicitly
+          DEPLOY_PATH="$DEPLOY_PATH"
+          cd "\$DEPLOY_PATH"
+          
+          echo "📂 Working directory: \$(pwd)"
+          echo "📋 Listing config directory contents:"
+          ls -la config/nginx/conf.d/ || echo "Config directory not found"
+          
+          # Disable HTTP-only config if it exists
+          if [ -f config/nginx/conf.d/7gram.http.conf ]; then
+            echo "📤 Disabling HTTP-only configuration..."
+            mv config/nginx/conf.d/7gram.http.conf config/nginx/conf.d/7gram.http.conf.disabled
+          else
+            echo "ℹ️ No HTTP-only config found (this is fine)"
+          fi
+          
+          # Verify HTTPS config exists
+          if [ -f config/nginx/conf.d/7gram.https.conf ]; then
+            echo "✅ HTTPS configuration file found"
+            echo "📋 HTTPS config file size: \$(ls -lh config/nginx/conf.d/7gram.https.conf)"
+          else
+            echo "❌ HTTPS configuration file not found at config/nginx/conf.d/7gram.https.conf"
+            echo "📋 Available files in config/nginx/conf.d/:"
+            ls -la config/nginx/conf.d/ || echo "Directory does not exist"
+            echo "📋 Available files in config/nginx/:"
+            ls -la config/nginx/ || echo "Directory does not exist"
+            echo "� Searching for any .conf files:"
+            find . -name "*.conf" -type f 2>/dev/null || echo "No .conf files found"
+            exit 1
+          fi
+          
+          # Verify docker-compose.yml exists
+          if [ -f docker-compose.yml ]; then
+            echo "✅ docker-compose.yml found"
+          else
+            echo "❌ docker-compose.yml not found in \$(pwd)"
+            ls -la . | head -10
+            exit 1
+          fi
+          
+          echo "✅ NGINX configuration verified for HTTPS"
+          
+          HTTPS_CONFIG
+
+      - name: Start Docker Compose ()
+        run: |
+          echo "🚀 Starting Docker Compose services using FKS pattern..."
+          
+          # Use confirmed server IP from environment
+          SERVER_IP="$CONFIRMED_SERVER_IP"
+          
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ CONFIRMED_SERVER_IP not set from previous steps"
+            exit 1
+          fi
+          
+          echo "📋 Using confirmed server IP: $SERVER_IP"
+          
+          # Determine deployment user and credentials (FKS pattern)
+          if [ "${ACTIONS_USER_READY:-false}" = "true" ]; then
+            DEPLOY_USER="actions_user"
+            DEPLOY_PATH="/home/actions_user/nginx-app"
+            SSH_PASS="${{ secrets.ACTIONS_USER_PASSWORD }}"
+            echo "✅ Using actions_user for Docker startup (FKS preferred)"
+          else
+            DEPLOY_USER="root"
+            DEPLOY_PATH="/root/nginx-app"
+            SSH_PASS="${{ secrets.NGINX_ROOT_PASSWORD }}"
+            echo "⚠️ Using root for Docker startup (actions_user not ready)"
+          fi
+          
+          echo "📂 Using deployment path: $DEPLOY_PATH"
+          
+          # Start Docker Compose services (FKS pattern - simplified)
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$SERVER_IP << 'DOCKER_DEPLOY'
+          cd $DEPLOY_PATH
+          
+          # Ensure Docker is running
+          if ! sudo docker info >/dev/null 2>&1; then
+            echo "🔧 Starting Docker..."
+            sudo systemctl start docker
+            sleep 10
+          fi
+          
+          # Prepare SSL certificates for Docker bind mounting
+          echo "🔒 Preparing SSL certificates for Docker..."
+          
+          # Create SSL directory in deployment path for bind mounting
+          mkdir -p ssl
+          
+          # Copy certificates from system location to deployment directory
+          echo "� Copying SSL certificates to deployment directory..."
+          if sudo test -f /etc/nginx/ssl/fullchain.pem && sudo test -f /etc/nginx/ssl/privkey.pem; then
+            sudo cp /etc/nginx/ssl/fullchain.pem ssl/
+            sudo cp /etc/nginx/ssl/privkey.pem ssl/
+            sudo chown $(whoami):$(whoami) ssl/*
+            chmod 644 ssl/fullchain.pem
+            chmod 600 ssl/privkey.pem
+            echo "✅ SSL certificates copied from system location"
+          else
+            echo "🔧 Generating SSL certificates in deployment directory..."
+            
+            cd ssl
+            
+            # Create certificate configuration
+            cat > openssl.conf << 'SSL_CONFIG'
+          [req]
+          default_bits = 2048
+          prompt = no
+          default_md = sha256
+          distinguished_name = dn
+          req_extensions = v3_req
+          
+          [dn]
+          C=US
+          ST=State
+          L=City
+          O=Organization
+          CN=7gram.xyz
+          
+          [v3_req]
+          basicConstraints = CA:FALSE
+          keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+          subjectAltName = @alt_names
+          
+          [alt_names]
+          DNS.1 = 7gram.xyz
+          DNS.2 = *.7gram.xyz
+          DNS.3 = www.7gram.xyz
+          DNS.4 = nginx.7gram.xyz
+          DNS.5 = localhost
+          IP.1 = 127.0.0.1
+          SSL_CONFIG
+            
+            # Generate certificates
+            openssl genrsa -out privkey.pem 2048
+            openssl req -new -key privkey.pem -out cert.csr -config openssl.conf
+            openssl x509 -req -in cert.csr -signkey privkey.pem -out fullchain.pem -days 365 -extensions v3_req -extfile openssl.conf
+            
+            # Set permissions
+            chmod 644 fullchain.pem
+            chmod 600 privkey.pem
+            
+            cd ..
+            echo "✅ SSL certificates generated in deployment directory"
+          fi
+          
+          # Verify certificates exist
+          if [ -f ssl/fullchain.pem ] && [ -f ssl/privkey.pem ]; then
+            echo "✅ SSL certificates ready for Docker deployment"
+            ls -la ssl/
+          else
+            echo "❌ SSL certificates missing"
+            exit 1
+          fi
+          
+          # Create modified docker-compose with bind mount for SSL
+          echo "📝 Creating docker-compose with SSL bind mount..."
+          cp docker-compose.yml docker-compose-ssl.yml
+          
+          # Replace the ssl-certs volume mount with a bind mount in both files
+          sed -i 's|- ssl-certs:/etc/nginx/ssl|- ./ssl:/etc/nginx/ssl:ro|' docker-compose-ssl.yml
+          sed -i 's|- ssl-certs:/etc/nginx/ssl|- ./ssl:/etc/nginx/ssl:ro|' docker-compose.yml
+          
+          echo "✅ Docker Compose configured for SSL bind mount"
+          echo "✅ Both docker-compose.yml and docker-compose-ssl.yml updated for SSL"
+          
+          # Create NGINX configuration that can start without backend dependencies
+          echo "🔧 Creating NGINX configuration without upstream dependencies..."
+          
+          # Backup the original configuration
+          cp config/nginx/nginx.conf config/nginx/nginx.full.conf
+          
+          # Use minimal configuration that doesn't depend on upstream servers
+          if [ -f config/nginx/nginx.minimal.conf ]; then
+            cp config/nginx/nginx.minimal.conf config/nginx/nginx.conf
+            echo "✅ Using minimal NGINX configuration (no upstream dependencies)"
+          else
+            echo "⚠️ Minimal config not found, using original (may fail if upstreams unavailable)"
+          fi
+          
+          # Use docker compose (modern approach for FKS)
+          DOCKER_COMPOSE_CMD="sudo docker compose"
+          echo "✅ Using Docker Compose V2 for FKS deployment with SSL"
+          
+          # Stop any existing containers first
+          echo "🛑 Stopping any existing containers..."
+          $DOCKER_COMPOSE_CMD -f docker-compose.yml down 2>/dev/null || echo "No existing containers to stop"
+          
+          # Start services with SSL configuration
+          echo "🐳 Starting NGINX services with SSL..."
+          $DOCKER_COMPOSE_CMD -f docker-compose-ssl.yml up -d
+          
+          # Wait for services to be ready
+          echo "⏳ Waiting for services to be ready..."
+          sleep 30
+          
+          # Verify services are running
+          echo "✅ Service status:"
+          $DOCKER_COMPOSE_CMD -f docker-compose-ssl.yml ps
+          
+          # === POST-DEPLOYMENT SERVICE VERIFICATION ===
+          echo ""
+          echo "🔍 Post-deployment service verification..."
+          
+          # Verify NGINX is responding
+          echo "📋 Testing NGINX response..."
+          if curl -f -s -k https://localhost >/dev/null 2>&1; then
+            echo "✅ NGINX HTTPS is responding (self-signed certificate)"
+          elif curl -f -s http://localhost >/dev/null 2>&1; then
+            echo "✅ NGINX HTTP is responding"
+          else
+            echo "⚠️ NGINX not responding on localhost"
+          fi
+          
+          # Test HTTPS specifically
+          echo "📋 Testing HTTPS with self-signed certificate..."
+          if curl -k -I https://localhost 2>/dev/null | grep -q "HTTP/"; then
+            echo "✅ HTTPS is working with self-signed certificate"
+            echo "🔍 Certificate details:"
+            echo | openssl s_client -connect localhost:443 -servername localhost 2>/dev/null | openssl x509 -noout -subject -dates 2>/dev/null || echo "Could not retrieve certificate details"
+          else
+            echo "⚠️ HTTPS not responding"
+          fi
+          
+          # Check container health
+          echo "📋 Container health check..."
+          $DOCKER_COMPOSE_CMD -f docker-compose-ssl.yml ps --format table
+          
+          # Check logs for any immediate errors
+          echo "📋 Checking for startup errors..."
+          $DOCKER_COMPOSE_CMD -f docker-compose-ssl.yml logs --tail=10 nginx 2>/dev/null || echo "No nginx logs available"
+          
+          echo "✅ Docker deployment verification completed"
+          
+          # Create helper scripts for easy management
+          echo "📝 Creating management helper scripts..."
+          
+          # Create restart script with proper escaping
+          printf '#!/bin/bash\necho "🔄 Restarting NGINX services with SSL support..."\n\n# Ensure SSL certificates exist\nif [ ! -f ssl/fullchain.pem ] || [ ! -f ssl/privkey.pem ]; then\n    echo "❌ SSL certificates not found in ssl/ directory"\n    echo "📍 Current directory: $(pwd)"\n    echo "📍 Expected files: ssl/fullchain.pem, ssl/privkey.pem"\n    ls -la ssl/ 2>/dev/null || echo "ssl/ directory not found"\n    exit 1\nfi\n\necho "✅ SSL certificates found"\necho "🛑 Stopping existing containers..."\nsudo docker compose down 2>/dev/null || docker compose down 2>/dev/null || echo "No containers to stop"\n\necho "🚀 Starting services with SSL..."\nsudo docker compose up -d || docker compose up -d\n\necho "⏳ Waiting for services to start..."\nsleep 10\n\necho "📋 Service status:"\nsudo docker compose ps || docker compose ps\n\necho "🔍 Testing NGINX..."\nif curl -k -I https://localhost 2>/dev/null | grep -q "HTTP/"; then\n    echo "✅ HTTPS is working"\nelse\n    echo "⚠️ HTTPS test failed - check logs: docker logs nginx-proxy"\nfi\n\necho "✅ Restart completed"\n' > restart-ssl.sh
+          
+          # Create check script
+          printf '#!/bin/bash\necho "🔍 SSL Certificate Status Check"\necho "==============================="\n\necho "📂 SSL Directory Contents:"\nls -la ssl/ 2>/dev/null || echo "❌ ssl/ directory not found"\n\necho ""\necho "🐳 Container Status:"\nsudo docker compose ps || docker compose ps\n\necho ""\necho "📋 NGINX Container Logs (last 5 lines):"\nsudo docker logs nginx-proxy --tail=5 2>/dev/null || echo "❌ Could not get logs"\n\necho ""\necho "🌐 HTTPS Test:"\nif curl -k -I https://localhost 2>/dev/null | head -1; then\n    echo "✅ HTTPS is responding"\nelse\n    echo "❌ HTTPS is not responding"\nfi\n\necho ""\necho "📊 Certificate Details:"\nif [ -f ssl/fullchain.pem ]; then\n    openssl x509 -in ssl/fullchain.pem -text -noout | grep -E "(Subject:|DNS:|Not After)" 2>/dev/null || echo "Could not parse certificate"\nelse\n    echo "❌ ssl/fullchain.pem not found"\nfi\n' > check-ssl.sh
+          
+          chmod +x restart-ssl.sh check-ssl.sh
+          
+          echo "✅ Helper scripts created:"
+          echo "   📝 restart-ssl.sh - Restart services with SSL"
+          echo "   📝 check-ssl.sh - Check SSL status and logs"
+          DOCKER_DEPLOY
+
+      - name: Verify Netdata Status
+        run: |
+          echo "=== Checking Netdata Status ==="
+          
+          # CRITICAL: Get the REAL server IP from Linode CLI for Netdata verification
+          echo "🔍 Getting REAL server details from Linode CLI..."
+          
+          # First try the server ID from previous steps
+          SERVER_ID="${{ steps.server_details.outputs.server_id }}"
+          echo "🔍 Looking for server ID from workflow: $SERVER_ID"
+          
+          # Get authoritative IP from Linode CLI using the tracked server ID
+          REAL_SERVER_IP=$(linode-cli linodes list --text --no-header --format="id,ipv4" | grep "^$SERVER_ID" | cut -f2 | cut -d',' -f1)
+          
+          # If that fails, look for the nginx server by name instead
+          if [ -z "$REAL_SERVER_IP" ] || [[ ! "$REAL_SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "⚠️ Server ID $SERVER_ID not found, searching by server name..."
+            
+            # Look for nginx server by name as fallback
+            NGINX_SERVER=$(linode-cli linodes list --text --no-header --format="id,label,ipv4" | grep "${{ env.NGINX_SERVER_NAME }}")
+            
+            if [ -n "$NGINX_SERVER" ]; then
+              SERVER_ID=$(echo "$NGINX_SERVER" | cut -f1)
+              REAL_SERVER_IP=$(echo "$NGINX_SERVER" | cut -f3 | cut -d',' -f1)
+              echo "✅ Found nginx server by name: $SERVER_ID @ $REAL_SERVER_IP"
+            else
+              echo "❌ CRITICAL: Could not find nginx server by ID or name"
+              echo "🔍 Available servers:"
+              linode-cli linodes list --text --format="id,label,ipv4" | head -10
+              exit 1
+            fi
+          fi
+          
+          # Final validation
+          if [ -z "$REAL_SERVER_IP" ] || [[ ! "$REAL_SERVER_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ CRITICAL: Could not get valid IP for Netdata verification"
+            echo "   Server ID searched: ${{ steps.server_details.outputs.server_id }}"
+            echo "   Final server ID: $SERVER_ID"
+            echo "   Final server IP: $REAL_SERVER_IP"
+            echo "🔍 Debugging current servers:"
+            linode-cli linodes list --text --format="id,label,ipv4" | head -10
+            exit 1
+          fi
+          
+          echo "📋 Using REAL server IP for Netdata verification: $REAL_SERVER_IP"
+          SERVER_IP="$REAL_SERVER_IP"
+          
+          # Determine which user to use for SSH access
+          if timeout 5 sshpass -p "${{ secrets.ACTIONS_USER_PASSWORD }}" ssh -o StrictHostKeyChecking=no actions_user@$SERVER_IP "echo 'test'" 2>/dev/null >/dev/null; then
+            SSH_USER="actions_user"
+            SSH_PASS="${{ secrets.ACTIONS_USER_PASSWORD }}"
+          else
+            SSH_USER="root"
+            SSH_PASS="${{ secrets.NGINX_ROOT_PASSWORD }}"
+          fi
+          
+          echo "🔍 Checking Netdata via $SSH_USER@$SERVER_IP..."
+          
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SERVER_IP << 'NETDATA_CHECK'
+          
+          echo "🔍 Checking Netdata service status..."
+          systemctl status netdata --no-pager || echo "❌ Netdata service status failed"
+          
+          echo "🔍 Checking if Netdata is listening on port 19999..."
+          ss -tlnp | grep :19999 || echo "❌ Netdata not listening on port 19999"
+          
+          echo "🔍 Testing Netdata API endpoint..."
+          curl -f -s http://localhost:19999/api/v1/info || echo "❌ Netdata API not responding"
+          
+          echo "🔍 Checking Netdata logs..."
+          journalctl -u netdata --no-pager -n 10 || echo "❌ Could not get Netdata logs"
+          
+          echo "🔍 Checking if Netdata is claimed to cloud..."
+          if [ -f /var/lib/netdata/cloud.d/claimed_id ]; then
+            echo "✅ Netdata is claimed to cloud"
+            echo "Claimed ID: $(sudo cat /var/lib/netdata/cloud.d/claimed_id 2>/dev/null || echo 'Could not read claimed ID')"
+          else
+            echo "❌ Netdata is not claimed to cloud"
+            echo "🔧 Attempting to claim Netdata with enhanced retry logic and proper permissions..."
+            
+            # Enhanced claiming with multiple strategies - ALL with sudo
+            CLAIM_SUCCESS=false
+            
+            # Strategy 1: Direct claim script with sudo (most reliable)
+            echo "📋 Strategy 1: Direct netdata-claim script with sudo..."
+            CLAIM_SCRIPT=""
+            for script_path in "/opt/netdata/bin/netdata-claim.sh" "/opt/netdata/usr/libexec/netdata/netdata-claim.sh" "/usr/libexec/netdata/netdata-claim.sh"; do
+              if [ -f "$script_path" ]; then
+                CLAIM_SCRIPT="$script_path"
+                echo "Found claim script: $CLAIM_SCRIPT"
+                break
+              fi
+            done
+            
+            if [ -n "$CLAIM_SCRIPT" ]; then
+              for attempt in 1 2 3; do
+                echo "Claim attempt $attempt/3 with sudo..."
+                if sudo timeout 90 $CLAIM_SCRIPT -token=${{ secrets.NETDATA_CLAIM_TOKEN }} \
+                  -rooms=${{ secrets.NETDATA_CLAIM_ROOM }} \
+                  -url=https://app.netdata.cloud \
+                  -hostname=nginx.7gram.xyz; then
+                  echo "✅ Strategy 1 successful: Direct claim script with sudo (attempt $attempt)"
+                  CLAIM_SUCCESS=true
+                  break
+                else
+                  echo "⚠️ Attempt $attempt failed, waiting before retry..."
+                  sleep 15
+                fi
+              done
+            else
+              echo "❌ No claim script found for Strategy 1"
+            fi
+            
+            # Strategy 2: Configuration-based claiming with sudo
+            if [ "$CLAIM_SUCCESS" = "false" ]; then
+              echo "📋 Strategy 2: Configuration-based claiming with sudo..."
+              sudo mkdir -p /var/lib/netdata/cloud.d
+              
+              sudo tee /var/lib/netdata/cloud.d/cloud.conf > /dev/null << 'CLOUD_CONFIG'
+          [global]
+              enabled = yes
+          
+          [connection]
+              hostname = nginx.7gram.xyz
+              
+          [claim]
+              token = ${{ secrets.NETDATA_CLAIM_TOKEN }}
+              rooms = ${{ secrets.NETDATA_CLAIM_ROOM }}
+              url = https://app.netdata.cloud
+          CLOUD_CONFIG
+              
+              sudo chown -R netdata:netdata /var/lib/netdata/cloud.d 2>/dev/null || sudo chown -R root:root /var/lib/netdata/cloud.d
+              sudo chmod 640 /var/lib/netdata/cloud.d/cloud.conf
+              
+              sudo systemctl restart netdata
+              sleep 20
+              
+              if [ -f /var/lib/netdata/cloud.d/claimed_id ]; then
+                echo "✅ Strategy 2 successful: Configuration-based claiming with sudo"
+                CLAIM_SUCCESS=true
+              else
+                echo "⚠️ Strategy 2 failed, trying manual approach..."
+              fi
+            fi
+            
+            # Strategy 3: Manual file-based claiming with sudo
+            if [ "$CLAIM_SUCCESS" = "false" ]; then
+              echo "📋 Strategy 3: Manual file-based claiming with sudo..."
+              sudo mkdir -p /var/lib/netdata/cloud.d
+              echo "${{ secrets.NETDATA_CLAIM_TOKEN }}" | sudo tee /var/lib/netdata/cloud.d/token > /dev/null
+              echo "${{ secrets.NETDATA_CLAIM_ROOM }}" | sudo tee /var/lib/netdata/cloud.d/rooms > /dev/null
+              echo "https://app.netdata.cloud" | sudo tee /var/lib/netdata/cloud.d/url > /dev/null
+              echo "nginx.7gram.xyz" | sudo tee /var/lib/netdata/cloud.d/hostname > /dev/null
+              sudo chown -R netdata:netdata /var/lib/netdata/cloud.d 2>/dev/null || sudo chown -R root:root /var/lib/netdata/cloud.d
+              sudo chmod 640 /var/lib/netdata/cloud.d/*
+              
+              sudo systemctl restart netdata
+              sleep 25
+              
+              if [ -f /var/lib/netdata/cloud.d/claimed_id ]; then
+                echo "✅ Strategy 3 successful: Manual file-based claiming with sudo"
+                CLAIM_SUCCESS=true
+              else
+                echo "❌ Strategy 3 failed: Manual claiming unsuccessful"
+              fi
+            fi
+            
+            # Strategy 4: Last resort - direct netdata command with sudo
+            if [ "$CLAIM_SUCCESS" = "false" ]; then
+              echo "📋 Strategy 4: Direct netdata command with sudo..."
+              if command -v netdata-claim.sh >/dev/null 2>&1; then
+                if sudo timeout 90 netdata-claim.sh -token=${{ secrets.NETDATA_CLAIM_TOKEN }} \
+                  -rooms=${{ secrets.NETDATA_CLAIM_ROOM }} \
+                  -url=https://app.netdata.cloud \
+                  -hostname=nginx.7gram.xyz 2>/dev/null; then
+                  echo "✅ Strategy 4 successful: Direct netdata command with sudo"
+                  CLAIM_SUCCESS=true
+                else
+                  echo "❌ Strategy 4 failed: Direct command unsuccessful"
+                fi
+              else
+                echo "❌ netdata-claim.sh command not found in PATH"
+              fi
+            fi
+            
+            # Final verification
+            if [ "$CLAIM_SUCCESS" = "true" ]; then
+              echo "🎉 Netdata successfully claimed to cloud!"
+              echo "Claimed ID: $(sudo cat /var/lib/netdata/cloud.d/claimed_id 2>/dev/null || echo 'ID file exists but unreadable')"
+            else
+              echo "❌ All claiming strategies failed"
+              echo "📋 Final claim status check:"
+              sudo ls -la /var/lib/netdata/cloud.d/ 2>/dev/null || echo "No cloud.d directory"
+              echo "🔍 Netdata service will continue running without cloud integration"
+              echo "💡 Manual claiming may be needed: sudo netdata-claim.sh -token=TOKEN -rooms=ROOM -url=https://app.netdata.cloud"
+            fi
+          fi
+          
+          echo "🔍 Checking Netdata configuration..."
+          ls -la /var/lib/netdata/ 2>/dev/null || echo "❌ Could not list Netdata data directory"
+          
+          echo "🔍 Final Netdata status check..."
+          systemctl is-active netdata && echo "✅ Netdata is active" || echo "❌ Netdata is not active"
+          
+          echo "🔍 Final API connectivity test..."
+          if curl -f -s http://localhost:19999/api/v1/info >/dev/null 2>&1; then
+            echo "✅ Netdata API is responding"
+          else
+            echo "❌ Netdata API is not responding"
+          fi
+          
+          NETDATA_CHECK
+
+  # ============================================================================
+  # Build Docker Images
+  # ============================================================================
+  build-docker-images:
+    name: 🐳 Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [preflight-checks, detect-changes]
+    if: |
+      needs.preflight-checks.outputs.secrets_validated == 'true' && 
+      (needs.detect-changes.outputs.docker-changed == 'true' || 
+       needs.detect-changes.outputs.nginx-changed == 'true')
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify Docker Compose
+        run: |
+          echo "🔍 Verifying Docker Compose availability..."
+          if docker compose version >/dev/null 2>&1; then
+            echo "✅ Docker Compose V2 available"
+            docker compose version
+          elif command -v docker-compose >/dev/null 2>&1; then
+            echo "✅ Docker Compose V1 available"
+            docker-compose version
+          else
+            echo "❌ No Docker Compose found"
+            exit 1
+          fi
+          docker version
+
+      - name: Build and push images
+        run: |
+          echo "🐳 Building and pushing Docker images..."
+          echo "📦 Building NGINX images..."
+          
+          # Determine which docker compose command to use
+          if docker compose version >/dev/null 2>&1; then
+            DOCKER_COMPOSE_CMD="docker compose"
+            echo "✅ Using Docker Compose V2"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            DOCKER_COMPOSE_CMD="docker-compose"
+            echo "✅ Using Docker Compose V1"
+          else
+            echo "❌ No Docker Compose found"
+            exit 1
+          fi
+          
+          $DOCKER_COMPOSE_CMD -f docker-compose.yml build
+          $DOCKER_COMPOSE_CMD -f docker-compose.yml push
+          echo "✅ NGINX Docker build complete"
+
+  # ============================================================================
+  # Deployment Summary (Enhanced)
+  # ============================================================================
+  deployment-summary:
+    name: 📊 Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [preflight-checks, create-nginx-server, deploy-nginx, cleanup-failed-deployment]
+    if: always() && needs.preflight-checks.outputs.secrets_validated == 'true'
+    steps:
+      - name: 📊 Generate Enhanced Deployment Summary
+        run: |
+          echo "# 🚀 NGINX Deployment Summary" > deployment_summary.md
+          echo "" >> deployment_summary.md
+          echo "## 📋 Deployment Results" >> deployment_summary.md
+          echo "" >> deployment_summary.md
+          
+          # Check overall deployment status
+          NGINX_RESULT="${{ needs.deploy-nginx.result }}"
+          SERVER_CREATED="${{ needs.create-nginx-server.result }}"
+          CLEANUP_RAN="${{ needs.cleanup-failed-deployment.result }}"
+          
+          if [[ "$NGINX_RESULT" == "success" ]]; then
+            echo "✅ **NGINX Deployment**: SUCCESS" >> deployment_summary.md
+            echo "🌐 **Status**: Live and accessible" >> deployment_summary.md
+            echo "" >> deployment_summary.md
+            echo "### 🔗 Access URLs" >> deployment_summary.md
+            echo "- **Root Domain**: https://7gram.xyz" >> deployment_summary.md
+            echo "- **NGINX Direct**: https://nginx.7gram.xyz" >> deployment_summary.md
+            echo "- **All Subdomains**: Route through NGINX proxy" >> deployment_summary.md
+          elif [[ "$CLEANUP_RAN" == "success" ]]; then
+            echo "🧹 **NGINX Deployment**: FAILED (Cleaned up)" >> deployment_summary.md
+            echo "⚠️ **Status**: Failed but resources cleaned up" >> deployment_summary.md
+          else
+            echo "❌ **NGINX Deployment**: FAILED" >> deployment_summary.md
+            echo "⚠️ **Status**: May require manual cleanup" >> deployment_summary.md
+          fi
+          
+          echo "" >> deployment_summary.md
+          echo "## ⚙️ Configuration Details" >> deployment_summary.md
+          echo "- **Target Region**: ${{ env.TARGET_REGION }}" >> deployment_summary.md
+          echo "- **Server Type**: ${{ env.SERVER_TYPE }}" >> deployment_summary.md
+          echo "- **Domain Strategy**: All *.7gram.xyz → NGINX" >> deployment_summary.md
+          echo "- **SSL**: Managed by NGINX" >> deployment_summary.md
+          echo "- **Tailscale**: VPN access configured" >> deployment_summary.md
+          echo "- **Monitoring**: Netdata integrated" >> deployment_summary.md
+          echo "" >> deployment_summary.md
+          echo "## 🕐 Deployment Info" >> deployment_summary.md
+          echo "- **Timestamp**: $(date -u)" >> deployment_summary.md
+          echo "- **Commit**: ${GITHUB_SHA::8}" >> deployment_summary.md
+          echo "- **Workflow**: ${GITHUB_RUN_ID}" >> deployment_summary.md
+          
+          # Add server details if available
+          if [[ "$SERVER_CREATED" == "success" ]]; then
+            echo "" >> deployment_summary.md
+            echo "## 🖥️ Server Details" >> deployment_summary.md
+            echo "- **Server ID**: ${{ needs.create-nginx-server.outputs.server-id }}" >> deployment_summary.md
+            echo "- **Server IP**: ${{ needs.create-nginx-server.outputs.server-ip }}" >> deployment_summary.md
+          fi
+          
+          echo "" >> deployment_summary.md
+          echo "---" >> deployment_summary.md
+          echo "Generated by GitHub Actions" >> deployment_summary.md
+          
+          # Display the summary
+          echo "## 📊 Deployment Summary"
+          cat deployment_summary.md
+
+      - name: Send Discord notification
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            echo "📱 Sending Discord notification..."
+            # Add Discord notification logic here
+          else
+            echo "⏭️ Discord webhook not configured, skipping notification"
+          fi
+
+  # ============================================================================
+  # Cleanup Failed Deployment (Enhanced)
+  # ============================================================================
+  cleanup-failed-deployment:
+    name: 🧹 Cleanup Failed Deployment
+    runs-on: ubuntu-latest
+    needs: [preflight-checks, create-nginx-server, deploy-nginx]
+    if: failure() && needs.create-nginx-server.outputs.server-id != ''
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧹 Enhanced Cleanup with Service Removal
+        env:
+          LINODE_CLI_TOKEN: ${{ secrets.LINODE_CLI_TOKEN }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          NETDATA_CLAIM_TOKEN: ${{ secrets.NETDATA_CLAIM_TOKEN }}
+          NGINX_ROOT_PASSWORD: ${{ secrets.NGINX_ROOT_PASSWORD }}
+        run: |
+          echo "🧹 Cleaning up failed deployment..."
+          
+          SERVER_ID="${{ needs.create-nginx-server.outputs.server-id }}"
+          SERVER_IP="${{ needs.create-nginx-server.outputs.server-ip }}"
+          
+          if [ -n "$SERVER_ID" ] && [ "$SERVER_ID" != "unknown" ]; then
+            echo "🗑️ Cleaning up server: $SERVER_ID ($SERVER_IP)"
+            
+            # Install Linode CLI
+            python3 -m pip install --user linode-cli --quiet
+            export PATH="$HOME/.local/bin:$PATH"
+            
+            # Configure Linode CLI
+            mkdir -p ~/.config/linode-cli
+            cat > ~/.config/linode-cli/config << EOF
+          [DEFAULT]
+          default-user = DEFAULT
+          region = ca-central
+          type = g6-standard-1
+          image = linode/arch
+          token = $LINODE_CLI_TOKEN
+          EOF
+            chmod 600 ~/.config/linode-cli/config
+            
+            # 1. Tailscale Cleanup (if server is accessible)
+            if [ -n "$TAILSCALE_AUTH_KEY" ] && [ -n "$SERVER_IP" ]; then
+              echo "🔗 Cleaning up Tailscale..."
+              timeout 15 sshpass -p "$NGINX_ROOT_PASSWORD" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$SERVER_IP" "
+                tailscale logout 2>/dev/null || true
+                systemctl stop tailscaled 2>/dev/null || true
+                rm -f /var/lib/tailscale/tailscaled.state 2>/dev/null || true
+              " 2>/dev/null || echo "⚠️ Could not cleanup Tailscale (server unreachable)"
+            fi
+            
+            # 2. Netdata Cleanup (if server is accessible)
+            if [ -n "$NETDATA_CLAIM_TOKEN" ] && [ -n "$SERVER_IP" ]; then
+              echo "📊 Cleaning up Netdata..."
+              timeout 15 sshpass -p "$NGINX_ROOT_PASSWORD" ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$SERVER_IP" "
+                systemctl stop netdata 2>/dev/null || true
+                netdata-claim.sh -token= -rooms= -url= 2>/dev/null || true
+                rm -rf /var/lib/netdata/cloud.d/ 2>/dev/null || true
+              " 2>/dev/null || echo "⚠️ Could not cleanup Netdata (server unreachable)"
+            fi
+            
+            # 3. Delete the server
+            echo "🖥️ Deleting server $SERVER_ID..."
+            if linode-cli linodes delete "$SERVER_ID" 2>/dev/null; then
+              echo "✅ Server deleted successfully"
+            else
+              echo "❌ Failed to delete server - manual cleanup required"
+              echo "Visit: https://cloud.linode.com/linodes"
+            fi
+          else
+            echo "⚠️ No server ID found for cleanup"
+          fi
+          
+          echo ""
+          echo "📋 Manual cleanup may be required:"
+          echo "🔗 Tailscale: https://login.tailscale.com/admin/machines"
+          echo "📊 Netdata: https://app.netdata.cloud/"
+          echo "🖥️ Linode: https://cloud.linode.com/linodes"

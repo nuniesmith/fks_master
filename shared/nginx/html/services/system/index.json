@@ -1,0 +1,440 @@
+{
+  "category": "System Services",
+  "icon": "🛠️",
+  "color": "system",
+  "description": "Infrastructure and system management tools for monitoring and automation",
+  "priority": 4,
+  "services": [
+    {
+      "id": "home-assistant",
+      "name": "Home Assistant",
+      "description": "Complete home automation platform with device control and automation",
+      "url": "https://home.7gram.xyz",
+      "icon": "🏠",
+      "type": "Home Automation",
+      "version": "2024.1.6",
+      "buttonText": "🏠 Home Assistant",
+      "priority": 10,
+      "tags": ["automation", "iot", "smart-home", "sensors"],
+      "healthCheck": {
+        "url": "https://home.7gram.xyz/api/",
+        "method": "GET",
+        "timeout": 8000,
+        "headers": {
+          "Authorization": "Bearer ${HA_TOKEN}"
+        }
+      },
+      "features": [
+        "Device Automation",
+        "Voice Control",
+        "Mobile App",
+        "Energy Monitoring",
+        "Security Integration",
+        "Custom Dashboards"
+      ],
+      "documentation": "https://www.home-assistant.io/docs/",
+      "repository": "https://github.com/home-assistant/core",
+      "dockerContainer": "homeassistant/home-assistant",
+      "port": 8123
+    },
+    {
+      "id": "portainer",
+      "name": "Portainer",
+      "description": "Docker container management interface with visual tools and monitoring",
+      "url": "https://portainer.7gram.xyz",
+      "icon": "🐳",
+      "type": "Container Manager",
+      "version": "2.19.4",
+      "buttonText": "🐳 Open Portainer",
+      "priority": 8,
+      "tags": ["docker", "containers", "management", "monitoring"],
+      "healthCheck": {
+        "url": "https://portainer.7gram.xyz/api/status",
+        "method": "GET",
+        "timeout": 5000
+      },
+      "features": [
+        "Container Management",
+        "Stack Deployment",
+        "Image Registry",
+        "User Management",
+        "Resource Monitoring",
+        "Template Library"
+      ],
+      "documentation": "https://docs.portainer.io/",
+      "repository": "https://github.com/portainer/portainer",
+      "dockerContainer": "portainer/portainer-ce",
+      "port": 9000
+    },
+    {
+      "id": "pihole",
+      "name": "Pi-hole DNS",
+      "description": "Network-wide ad blocker and DNS server with detailed analytics",
+      "url": "https://pihole.7gram.xyz",
+      "icon": "🛡️",
+      "type": "DNS Server",
+      "version": "5.17.3",
+      "buttonText": "🛡️ Open Pi-hole",
+      "priority": 9,
+      "tags": ["dns", "adblock", "security", "network"],
+      "healthCheck": "https://pihole.7gram.xyz/admin/api.php",
+      "features": [
+        "Ad Blocking",
+        "DNS Filtering",
+        "Network Analytics",
+        "Custom Block Lists",
+        "Local DNS Records",
+        "DHCP Server"
+      ],
+      "documentation": "https://docs.pi-hole.net/",
+      "repository": "https://github.com/pi-hole/pi-hole",
+      "dockerContainer": "pihole/pihole",
+      "port": 80
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "description": "Observability and monitoring platform with beautiful dashboards",
+      "url": "https://grafana.7gram.xyz",
+      "icon": "📊",
+      "type": "Monitoring",
+      "version": "10.2.3",
+      "buttonText": "📊 Open Grafana",
+      "priority": 7,
+      "tags": ["monitoring", "metrics", "dashboards", "analytics"],
+      "healthCheck": "https://grafana.7gram.xyz/api/health",
+      "features": [
+        "Custom Dashboards",
+        "Real-time Monitoring",
+        "Alerting",
+        "Data Sources",
+        "User Management",
+        "Plugin Ecosystem"
+      ],
+      "documentation": "https://grafana.com/docs/",
+      "repository": "https://github.com/grafana/grafana",
+      "dockerContainer": "grafana/grafana",
+      "port": 3000
+    },
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "description": "Systems monitoring and alerting toolkit with time series database",
+      "url": "https://prometheus.7gram.xyz",
+      "icon": "🔥",
+      "type": "Metrics Collection",
+      "version": "2.48.1",
+      "buttonText": "🔥 Open Prometheus",
+      "priority": 6,
+      "tags": ["metrics", "monitoring", "alerting", "timeseries"],
+      "healthCheck": "https://prometheus.7gram.xyz/-/healthy",
+      "features": [
+        "Metrics Collection",
+        "PromQL Queries",
+        "Alerting Rules",
+        "Service Discovery",
+        "Data Retention",
+        "Federation"
+      ],
+      "documentation": "https://prometheus.io/docs/",
+      "repository": "https://github.com/prometheus/prometheus",
+      "dockerContainer": "prom/prometheus",
+      "port": 9090
+    },
+    {
+      "id": "uptime-kuma",
+      "name": "Uptime Kuma",
+      "description": "Self-hosted monitoring tool with beautiful UI and notifications",
+      "url": "https://uptime.7gram.xyz",
+      "icon": "📈",
+      "type": "Uptime Monitor",
+      "version": "1.23.11",
+      "buttonText": "📈 Uptime Kuma",
+      "priority": 5,
+      "tags": ["uptime", "monitoring", "notifications", "status"],
+      "healthCheck": "https://uptime.7gram.xyz/api/status-page/heartbeat/7gram",
+      "features": [
+        "Website Monitoring",
+        "Status Pages",
+        "Notifications",
+        "Certificate Monitoring",
+        "Ping Monitoring",
+        "Docker Monitoring"
+      ],
+      "documentation": "https://github.com/louislam/uptime-kuma/wiki",
+      "repository": "https://github.com/louislam/uptime-kuma",
+      "dockerContainer": "louislam/uptime-kuma",
+      "port": 3001
+    },
+    {
+      "id": "duplicati",
+      "name": "Duplicati",
+      "description": "Encrypted backup solution with cloud storage support and scheduling",
+      "url": "https://duplicati.7gram.xyz",
+      "icon": "💾",
+      "type": "Backup Solution",
+      "version": "2.0.7.1",
+      "buttonText": "💾 Open Duplicati",
+      "priority": 4,
+      "tags": ["backup", "encryption", "cloud", "storage"],
+      "healthCheck": "https://duplicati.7gram.xyz/api/v1/serverstate",
+      "features": [
+        "Encrypted Backups",
+        "Cloud Storage",
+        "Incremental Backups",
+        "Scheduling",
+        "Versioning",
+        "Deduplication"
+      ],
+      "documentation": "https://duplicati.readthedocs.io/",
+      "repository": "https://github.com/duplicati/duplicati",
+      "dockerContainer": "lscr.io/linuxserver/duplicati",
+      "port": 8200
+    },
+    {
+      "id": "authelia",
+      "name": "Authelia",
+      "description": "Authentication and authorization server with 2FA and SSO support",
+      "url": "https://auth.7gram.xyz",
+      "icon": "🔐",
+      "type": "Authentication",
+      "version": "4.37.5",
+      "buttonText": "🔐 Authentication Portal",
+      "priority": 3,
+      "tags": ["authentication", "2fa", "sso", "security"],
+      "healthCheck": "https://auth.7gram.xyz/api/health",
+      "features": [
+        "Single Sign-On",
+        "Two-Factor Auth",
+        "LDAP Integration",
+        "Access Control",
+        "Session Management",
+        "Mobile Apps"
+      ],
+      "documentation": "https://www.authelia.com/overview/",
+      "repository": "https://github.com/authelia/authelia",
+      "dockerContainer": "authelia/authelia",
+      "port": 9091
+    },
+    {
+      "id": "watchtower",
+      "name": "Watchtower",
+      "description": "Automatic Docker container updates with notifications and scheduling",
+      "url": "https://watchtower.7gram.xyz",
+      "icon": "🗼",
+      "type": "Update Manager",
+      "version": "1.7.1",
+      "buttonText": "🗼 Watchtower",
+      "priority": 2,
+      "tags": ["docker", "updates", "automation", "containers"],
+      "healthCheck": "https://watchtower.7gram.xyz/v1/update",
+      "features": [
+        "Auto Updates",
+        "Notifications",
+        "Scheduling",
+        "Rolling Updates",
+        "Cleanup",
+        "Monitoring"
+      ],
+      "documentation": "https://containrrr.dev/watchtower/",
+      "repository": "https://github.com/containrrr/watchtower",
+      "dockerContainer": "containrrr/watchtower",
+      "port": 8080
+    }
+  ],
+  "infrastructure": {
+    "networking": {
+      "reverseProxy": {
+        "service": "nginx",
+        "ssl": "letsencrypt",
+        "config": "/etc/nginx/sites-available/"
+      },
+      "dns": {
+        "primary": "pihole",
+        "backup": "1.1.1.1",
+        "localDomain": "7gram.xyz"
+      },
+      "firewall": {
+        "service": "ufw",
+        "rules": "restrictive",
+        "monitoring": true
+      }
+    },
+    "storage": {
+      "primary": "/mnt/storage",
+      "backup": "/mnt/backup",
+      "cache": "/var/cache/7gram",
+      "logs": "/var/log/7gram"
+    },
+    "compute": {
+      "containers": "docker",
+      "orchestration": "docker-compose",
+      "monitoring": ["prometheus", "grafana"]
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "system": ["cpu", "memory", "disk", "network"],
+      "containers": ["status", "resources", "logs"],
+      "services": ["uptime", "response_time", "errors"]
+    },
+    "alerts": [
+      {
+        "name": "High CPU Usage",
+        "condition": "cpu_usage > 80%",
+        "duration": "5m",
+        "action": "notification"
+      },
+      {
+        "name": "Service Down",
+        "condition": "service_status = down",
+        "duration": "1m",
+        "action": "restart_service"
+      },
+      {
+        "name": "Low Disk Space",
+        "condition": "disk_usage > 90%",
+        "duration": "1m",
+        "action": "cleanup_logs"
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "System Overview",
+        "panels": ["cpu", "memory", "disk", "network"]
+      },
+      {
+        "name": "Service Status",
+        "panels": ["uptime", "response_times", "error_rates"]
+      }
+    ]
+  },
+  "security": {
+    "authentication": {
+      "provider": "authelia",
+      "methods": ["password", "totp", "webauthn"],
+      "sessions": "redis"
+    },
+    "authorization": {
+      "roles": ["admin", "user", "readonly"],
+      "policies": "path-based",
+      "defaultRole": "user"
+    },
+    "certificates": {
+      "provider": "letsencrypt",
+      "autoRenewal": true,
+      "monitoring": "uptime-kuma"
+    },
+    "backups": {
+      "frequency": "daily",
+      "retention": "30 days",
+      "encryption": true,
+      "destinations": ["local", "cloud"]
+    }
+  },
+  "maintenance": {
+    "updates": {
+      "automatic": true,
+      "schedule": "weekly",
+      "notifications": true,
+      "rollback": true
+    },
+    "cleanup": {
+      "logs": "weekly",
+      "cache": "daily",
+      "images": "monthly",
+      "backups": "monthly"
+    },
+    "healthChecks": {
+      "frequency": "5 minutes",
+      "timeout": "30 seconds",
+      "retries": 3,
+      "alerting": true
+    }
+  },
+  "troubleshooting": {
+    "commonIssues": [
+      {
+        "issue": "Service not accessible",
+        "solutions": [
+          "Check container status",
+          "Verify reverse proxy config",
+          "Check DNS resolution",
+          "Review firewall rules"
+        ]
+      },
+      {
+        "issue": "High resource usage",
+        "solutions": [
+          "Identify resource-heavy containers",
+          "Scale services horizontally",
+          "Optimize container limits",
+          "Clean up unused resources"
+        ]
+      },
+      {
+        "issue": "Authentication failures",
+        "solutions": [
+          "Check Authelia logs",
+          "Verify user credentials",
+          "Review access policies",
+          "Check session storage"
+        ]
+      }
+    ],
+    "logs": {
+      "system": "/var/log/syslog",
+      "docker": "/var/lib/docker/containers/",
+      "nginx": "/var/log/nginx/",
+      "authelia": "/var/log/authelia/"
+    },
+    "diagnostics": {
+      "containers": "docker ps -a",
+      "services": "systemctl status",
+      "network": "netstat -tulpn",
+      "disk": "df -h"
+    }
+  },
+  "integrations": {
+    "homeAssistant": {
+      "enabled": true,
+      "entities": [
+        "sensor.system_cpu",
+        "sensor.system_memory",
+        "binary_sensor.services_status"
+      ]
+    },
+    "notifications": {
+      "discord": "enabled",
+      "email": "enabled",
+      "pushover": "enabled",
+      "slack": "disabled"
+    },
+    "apis": {
+      "prometheus": "/api/v1/",
+      "grafana": "/api/",
+      "portainer": "/api/"
+    }
+  },
+  "backups": {
+    "critical": [
+      "Configuration files",
+      "SSL certificates",
+      "User databases",
+      "Authentication data",
+      "Dashboard configs"
+    ],
+    "important": [
+      "Container volumes",
+      "Log files",
+      "Metrics data",
+      "Backup histories"
+    ],
+    "exclude": [
+      "Cache directories",
+      "Temporary files",
+      "Large media files",
+      "Container images"
+    ]
+  }
+}

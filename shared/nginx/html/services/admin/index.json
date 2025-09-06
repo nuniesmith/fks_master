@@ -1,0 +1,491 @@
+{
+  "category": "Media Management",
+  "icon": "⚙️",
+  "color": "admin",
+  "description": "Automation and management tools for media acquisition and organization",
+  "priority": 3,
+  "services": [
+    {
+      "id": "sonarr",
+      "name": "Sonarr",
+      "description": "Automatic TV series management and monitoring with quality profiles",
+      "url": "https://sonarr.7gram.xyz",
+      "icon": "📺",
+      "type": "TV Management",
+      "version": "4.0.2",
+      "buttonText": "📺 Open Sonarr",
+      "priority": 10,
+      "tags": ["tv", "automation", "management", "downloads"],
+      "healthCheck": {
+        "url": "https://sonarr.7gram.xyz/api/v3/system/status",
+        "method": "GET",
+        "timeout": 8000,
+        "headers": {
+          "X-Api-Key": "${SONARR_API_KEY}"
+        }
+      },
+      "features": [
+        "Series Monitoring",
+        "Quality Profiles",
+        "Release Profiles",
+        "Calendar Integration",
+        "Automatic Renaming",
+        "Failed Download Handling"
+      ],
+      "integrations": [
+        "Plex", "Emby", "Jellyfin", "Kodi"
+      ],
+      "documentation": "https://wiki.servarr.com/sonarr",
+      "repository": "https://github.com/Sonarr/Sonarr",
+      "dockerContainer": "lscr.io/linuxserver/sonarr",
+      "port": 8989
+    },
+    {
+      "id": "radarr",
+      "name": "Radarr",
+      "description": "Movie collection manager with automatic downloads and quality management",
+      "url": "https://radarr.7gram.xyz",
+      "icon": "🎬",
+      "type": "Movie Management",
+      "version": "5.3.6",
+      "buttonText": "🎬 Open Radarr",
+      "priority": 9,
+      "tags": ["movies", "automation", "management", "downloads"],
+      "healthCheck": {
+        "url": "https://radarr.7gram.xyz/api/v3/system/status",
+        "method": "GET",
+        "timeout": 8000,
+        "headers": {
+          "X-Api-Key": "${RADARR_API_KEY}"
+        }
+      },
+      "features": [
+        "Movie Monitoring",
+        "Quality Profiles",
+        "Custom Formats",
+        "List Integration",
+        "Automatic Organization",
+        "Import Lists"
+      ],
+      "integrations": [
+        "Plex", "Emby", "Jellyfin", "IMDb", "TMDb"
+      ],
+      "documentation": "https://wiki.servarr.com/radarr",
+      "repository": "https://github.com/Radarr/Radarr",
+      "dockerContainer": "lscr.io/linuxserver/radarr",
+      "port": 7878
+    },
+    {
+      "id": "lidarr",
+      "name": "Lidarr",
+      "description": "Music collection manager for automated downloads and library organization",
+      "url": "https://lidarr.7gram.xyz",
+      "icon": "🎵",
+      "type": "Music Management",
+      "version": "2.1.7",
+      "buttonText": "🎵 Open Lidarr",
+      "priority": 7,
+      "tags": ["music", "automation", "management", "downloads"],
+      "healthCheck": {
+        "url": "https://lidarr.7gram.xyz/api/v1/system/status",
+        "method": "GET",
+        "timeout": 8000,
+        "headers": {
+          "X-Api-Key": "${LIDARR_API_KEY}"
+        }
+      },
+      "features": [
+        "Artist Monitoring",
+        "Album Tracking",
+        "Quality Profiles",
+        "Metadata Tagging",
+        "Release Monitoring",
+        "Import Lists"
+      ],
+      "integrations": [
+        "MusicBrainz", "LastFM", "Spotify", "Navidrome"
+      ],
+      "documentation": "https://wiki.servarr.com/lidarr",
+      "repository": "https://github.com/Lidarr/Lidarr",
+      "dockerContainer": "lscr.io/linuxserver/lidarr",
+      "port": 8686
+    },
+    {
+      "id": "readarr-audiobooks",
+      "name": "Readarr (Audiobooks)",
+      "description": "Audiobook collection management with automated downloads and organization",
+      "url": "https://audiobooks.7gram.xyz",
+      "icon": "🎧",
+      "type": "Audiobook Management",
+      "version": "0.3.14",
+      "buttonText": "🎧 Readarr Audiobooks",
+      "priority": 6,
+      "tags": ["audiobooks", "automation", "management", "downloads"],
+      "healthCheck": {
+        "url": "https://audiobooks.7gram.xyz/api/v1/system/status",
+        "method": "GET",
+        "timeout": 8000,
+        "headers": {
+          "X-Api-Key": "${READARR_AUDIOBOOKS_API_KEY}"
+        }
+      },
+      "features": [
+        "Author Monitoring",
+        "Book Series Tracking",
+        "Quality Profiles",
+        "Metadata Management",
+        "Calibre Integration",
+        "Import Lists"
+      ],
+      "integrations": [
+        "Audiobookshelf", "Calibre", "Goodreads"
+      ],
+      "documentation": "https://wiki.servarr.com/readarr",
+      "repository": "https://github.com/Readarr/Readarr",
+      "dockerContainer": "lscr.io/linuxserver/readarr",
+      "port": 8787
+    },
+    {
+      "id": "readarr-ebooks",
+      "name": "Readarr (E-books)",
+      "description": "E-book collection management with automated downloads and library sync",
+      "url": "https://ebooks.7gram.xyz",
+      "icon": "📚",
+      "type": "E-book Management",
+      "version": "0.3.14",
+      "buttonText": "📚 Readarr E-books",
+      "priority": 5,
+      "tags": ["ebooks", "automation", "management", "downloads"],
+      "healthCheck": {
+        "url": "https://ebooks.7gram.xyz/api/v1/system/status",
+        "method": "GET",
+        "timeout": 8000,
+        "headers": {
+          "X-Api-Key": "${READARR_EBOOKS_API_KEY}"
+        }
+      },
+      "features": [
+        "Author Monitoring",
+        "Book Series Tracking",
+        "Multiple Formats",
+        "Metadata Enrichment",
+        "Calibre Integration",
+        "Reading Lists"
+      ],
+      "integrations": [
+        "Calibre", "Calibre Web", "Goodreads", "OpenLibrary"
+      ],
+      "documentation": "https://wiki.servarr.com/readarr",
+      "repository": "https://github.com/Readarr/Readarr",
+      "dockerContainer": "lscr.io/linuxserver/readarr",
+      "port": 8788
+    },
+    {
+      "id": "jackett",
+      "name": "Jackett",
+      "description": "API support for torrent trackers with extensive indexer support",
+      "url": "https://jackett.7gram.xyz",
+      "icon": "🔌",
+      "type": "Torrent Proxy",
+      "version": "0.21.2174",
+      "buttonText": "🔌 Open Jackett",
+      "priority": 4,
+      "tags": ["torrent", "indexers", "proxy", "trackers"],
+      "healthCheck": "https://jackett.7gram.xyz/api/v2.0/indexers/all/results/torznab",
+      "features": [
+        "500+ Indexers",
+        "Torznab API",
+        "FlareSolverr Support",
+        "Proxy Support",
+        "Statistics",
+        "Manual Search"
+      ],
+      "documentation": "https://github.com/Jackett/Jackett/wiki",
+      "repository": "https://github.com/Jackett/Jackett",
+      "dockerContainer": "lscr.io/linuxserver/jackett",
+      "port": 9117
+    },
+    {
+      "id": "qbittorrent",
+      "name": "qBittorrent",
+      "description": "Feature-rich BitTorrent client with web interface and automation support",
+      "url": "https://qbt.7gram.xyz",
+      "icon": "⬇️",
+      "type": "Download Client",
+      "version": "4.6.2",
+      "buttonText": "⬇️ Open qBittorrent",
+      "priority": 3,
+      "tags": ["torrent", "download", "client", "automation"],
+      "healthCheck": "https://qbt.7gram.xyz/api/v2/app/version",
+      "features": [
+        "Web Interface",
+        "RSS Feeds",
+        "Sequential Downloading",
+        "Bandwidth Control",
+        "Plugin System",
+        "Category Management"
+      ],
+      "documentation": "https://github.com/qbittorrent/qBittorrent/wiki",
+      "repository": "https://github.com/qbittorrent/qBittorrent",
+      "dockerContainer": "lscr.io/linuxserver/qbittorrent",
+      "port": 8080
+    },
+    {
+      "id": "filebot",
+      "name": "FileBot",
+      "description": "Ultimate tool for organizing and renaming media files with extensive format support",
+      "url": "https://filebot.7gram.xyz",
+      "icon": "🗂️",
+      "type": "File Organizer",
+      "version": "5.1.1",
+      "buttonText": "🗂️ Open FileBot",
+      "priority": 2,
+      "tags": ["organization", "renaming", "media", "automation"],
+      "healthCheck": "https://filebot.7gram.xyz/health",
+      "features": [
+        "Automatic Renaming",
+        "Subtitle Downloads",
+        "Duplicate Detection",
+        "Format Conversion",
+        "Batch Processing",
+        "AMC Script"
+      ],
+      "documentation": "https://www.filebot.net/manual.html",
+      "repository": "https://github.com/filebot/filebot",
+      "dockerContainer": "jlesage/filebot",
+      "port": 5800
+    },
+    {
+      "id": "calibre",
+      "name": "Calibre",
+      "description": "Comprehensive e-book management and conversion tools with library sync",
+      "url": "https://calibre.7gram.xyz",
+      "icon": "📖",
+      "type": "E-book Manager",
+      "version": "7.3.0",
+      "buttonText": "📖 Open Calibre",
+      "priority": 1,
+      "tags": ["ebooks", "conversion", "management", "library"],
+      "healthCheck": "https://calibre.7gram.xyz/ping",
+      "features": [
+        "Format Conversion",
+        "Metadata Editing",
+        "Library Management",
+        "News Downloads",
+        "Device Sync",
+        "Plugin System"
+      ],
+      "supportedFormats": [
+        "EPUB", "MOBI", "AZW", "PDF", "TXT", "HTML", "RTF", "ODT"
+      ],
+      "documentation": "https://manual.calibre-ebook.com/",
+      "repository": "https://github.com/kovidgoyal/calibre",
+      "dockerContainer": "lscr.io/linuxserver/calibre",
+      "port": 8181
+    }
+  ],
+  "workflows": {
+    "tvShowAcquisition": {
+      "description": "Automated TV show downloading and organization",
+      "steps": [
+        {
+          "service": "sonarr",
+          "action": "Monitor series and episodes"
+        },
+        {
+          "service": "jackett",
+          "action": "Search indexers for releases"
+        },
+        {
+          "service": "qbittorrent", 
+          "action": "Download selected releases"
+        },
+        {
+          "service": "filebot",
+          "action": "Organize and rename files"
+        },
+        {
+          "service": "emby",
+          "action": "Scan library for new content"
+        }
+      ]
+    },
+    "movieAcquisition": {
+      "description": "Automated movie downloading and organization",
+      "steps": [
+        {
+          "service": "radarr",
+          "action": "Monitor wanted movies"
+        },
+        {
+          "service": "jackett",
+          "action": "Search for movie releases"
+        },
+        {
+          "service": "qbittorrent",
+          "action": "Download movie files"
+        },
+        {
+          "service": "filebot",
+          "action": "Rename and organize"
+        },
+        {
+          "service": "plex",
+          "action": "Update movie library"
+        }
+      ]
+    },
+    "bookAcquisition": {
+      "description": "Automated book downloading and library management",
+      "steps": [
+        {
+          "service": "readarr-ebooks",
+          "action": "Monitor wanted books"
+        },
+        {
+          "service": "jackett",
+          "action": "Search book indexers"
+        },
+        {
+          "service": "qbittorrent",
+          "action": "Download book files"
+        },
+        {
+          "service": "calibre",
+          "action": "Import and convert books"
+        },
+        {
+          "service": "calibre-web",
+          "action": "Update web library"
+        }
+      ]
+    }
+  },
+  "configuration": {
+    "downloadPath": "/downloads",
+    "mediaPath": "/media",
+    "completedPath": "/media/completed",
+    "importMode": "hardlink",
+    "permissions": {
+      "user": "1000",
+      "group": "1000",
+      "fileMode": "644",
+      "folderMode": "755"
+    },
+    "qualityProfiles": {
+      "tv": ["HD-1080p", "HD-720p", "SD"],
+      "movies": ["UHD-4K", "HD-1080p", "HD-720p"],
+      "music": ["Lossless", "High", "Standard"],
+      "books": ["EPUB", "PDF", "MOBI"]
+    }
+  },
+  "monitoring": {
+    "healthChecks": {
+      "interval": "5 minutes",
+      "timeout": "30 seconds",
+      "retries": 3
+    },
+    "diskSpace": {
+      "threshold": "10GB",
+      "alert": true
+    },
+    "downloadSpeed": {
+      "monitor": true,
+      "alertThreshold": "1MB/s"
+    },
+    "failedDownloads": {
+      "track": true,
+      "autoRetry": true,
+      "maxRetries": 3
+    }
+  },
+  "integrations": {
+    "notifications": {
+      "discord": {
+        "webhook": "${DISCORD_WEBHOOK_URL}",
+        "events": ["download_complete", "download_failed", "health_issue"]
+      },
+      "email": {
+        "enabled": true,
+        "events": ["weekly_summary", "critical_errors"]
+      }
+    },
+    "mediaServers": {
+      "emby": {
+        "url": "https://emby.7gram.xyz",
+        "apiKey": "${EMBY_API_KEY}",
+        "autoScan": true
+      },
+      "plex": {
+        "url": "https://plex.7gram.xyz",
+        "token": "${PLEX_TOKEN}",
+        "autoScan": true
+      }
+    }
+  },
+  "security": {
+    "apiKeys": {
+      "rotation": "quarterly",
+      "storage": "environment",
+      "required": true
+    },
+    "accessControl": {
+      "authentication": "required",
+      "authorization": "role-based"
+    },
+    "networkSecurity": {
+      "vpn": "recommended",
+      "proxy": "optional",
+      "encryption": "required"
+    }
+  },
+  "troubleshooting": {
+    "commonIssues": [
+      {
+        "issue": "Downloads not starting",
+        "solutions": [
+          "Check indexer connectivity",
+          "Verify download client settings",
+          "Review quality profiles",
+          "Check disk space availability"
+        ]
+      },
+      {
+        "issue": "Files not importing",
+        "solutions": [
+          "Verify file permissions",
+          "Check naming format",
+          "Review import settings",
+          "Ensure proper folder structure"
+        ]
+      },
+      {
+        "issue": "Slow download speeds",
+        "solutions": [
+          "Check VPN configuration",
+          "Verify port forwarding",
+          "Review bandwidth limits",
+          "Test different indexers"
+        ]
+      }
+    ],
+    "logFiles": {
+      "sonarr": "/config/logs/sonarr.txt",
+      "radarr": "/config/logs/radarr.txt",
+      "jackett": "/config/logs/jackett.txt",
+      "qbittorrent": "/config/logs/qbittorrent.log"
+    }
+  },
+  "backups": {
+    "critical": [
+      "Configuration files",
+      "Database backups",
+      "API keys",
+      "Quality profiles",
+      "Custom scripts"
+    ],
+    "schedule": "daily",
+    "retention": "30 days",
+    "destinations": ["local", "cloud"]
+  }
+}

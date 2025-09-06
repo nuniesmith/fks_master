@@ -1,0 +1,75 @@
+# monitoring/prometheus.yml - Enhanced Prometheus configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: '7gram-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules
+rule_files:
+  - "alerts/*.yml"
+  - "recording_rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Node exporter
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'nginx-server'
+
+  # Nginx exporter
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['localhost:9113']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'nginx-server'
+
+  # Blackbox exporter for endpoint monitoring
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://7gram.xyz
+          - https://emby.7gram.xyz
+          - https://jellyfin.7gram.xyz
+          - https://ai.7gram.xyz
+          - https://portainer.7gram.xyz
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  # Docker metrics
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']
+
+  # Process exporter
+  - job_name: 'process'
+    static_configs:
+      - targets: ['localhost:9256']
+
+  # Custom application metrics
+  - job_name: '7gram-app'
+    static_configs:
+      - targets: ['localhost:9091']
+    honor_labels: true

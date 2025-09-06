@@ -1,0 +1,214 @@
+services:
+  # =============================================================================
+  # NGINX REVERSE PROXY
+  # =============================================================================
+  nginx:
+    image: ${NGINX_IMAGE:-nginx:alpine}
+    container_name: nginx-proxy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      - TZ=${TZ:-America/Toronto}
+      - DOMAIN_NAME=${DOMAIN_NAME:-nginx.7gram.xyz}
+    volumes:
+      # Configuration
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./config/nginx/includes:/etc/nginx/includes:ro
+      
+      # SSL certificates (both self-signed and Let's Encrypt)
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./ssl/letsencrypt:/etc/letsencrypt:ro
+      - acme-challenge:/var/www/certbot
+      
+      # Logs
+      - nginx-logs:/var/log/nginx
+      
+      # Static content
+      - ./html:/usr/share/nginx/html:ro
+    networks:
+      - nginx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # SSL CERTIFICATE MANAGEMENT
+  # =============================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: nginx-certbot
+    volumes:
+      - ./ssl/letsencrypt:/etc/letsencrypt
+      - acme-challenge:/var/www/certbot
+      - ./config/certbot:/etc/letsencrypt/config
+    environment:
+      - TZ=${TZ:-America/Toronto}
+    entrypoint: /bin/sh
+    command: ["-c", "echo 'Starting certbot renewal service...' && while :; do echo 'Sleeping for 6 hours before next renewal check...' && sleep 6h && echo 'Checking for certificate renewals...' && certbot renew --webroot --webroot-path=/var/www/certbot --quiet && echo 'Renewal check completed.'; done"]
+    restart: unless-stopped
+    networks:
+      - nginx-network
+
+  # =============================================================================
+  # REACT WEB INTERFACE - NODE.JS SERVICE
+  # =============================================================================
+  web-interface:
+    image: ${WEB_INTERFACE_IMAGE:-node:18-alpine}
+    container_name: nginx-web-interface
+    restart: unless-stopped
+    networks:
+      - nginx-network
+    ports:
+      - "${WEB_INTERFACE_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - TZ=${TZ:-America/Toronto}
+      - DOMAIN_NAME=${DOMAIN_NAME:-nginx.7gram.xyz}
+      # Server routing configuration
+      - SULLIVAN_SERVER_URL=${SULLIVAN_SERVER_URL:-https://sullivan.7gram.xyz}
+      - FREDDY_SERVER_URL=${FREDDY_SERVER_URL:-https://freddy.7gram.xyz}
+      - DEFAULT_SERVER=${DEFAULT_SERVER:-sullivan}
+      # API configuration
+      - API_BASE_URL=${API_BASE_URL:-/api}
+      - WEB_INTERFACE_DEBUG=${WEB_INTERFACE_DEBUG:-false}
+    volumes:
+      # Mount the web interface source code
+      - ./web-interface:/app
+      # Node modules persistence
+      - web-interface-node-modules:/app/node_modules
+      # Build output
+      - web-interface-build:/app/build
+    working_dir: /app
+    command: |
+      sh -c "
+        echo '🚀 Starting React Web Interface with API Server...'
+        
+        # Install dependencies if package.json exists
+        if [ -f package.json ]; then
+          echo '📦 Installing Node.js dependencies...'
+          npm install --production
+        else
+          echo '⚠️ No package.json found, creating minimal React app...'
+          npx create-react-app . --template typescript || npm init -y
+        fi
+        
+        # Start API server in background
+        if [ -f api/server.js ]; then
+          echo '🔧 Starting API server...'
+          node api/server.js &
+          API_PID=$$!
+          echo \"API server started with PID $$API_PID\"
+        fi
+        
+        # Start the development/production server
+        if [ \"$$NODE_ENV\" = \"production\" ]; then
+          echo '🏗️ Building React app for production...'
+          npm run build 2>/dev/null || echo 'Build script not found, serving directly'
+          
+          # Serve built files or start dev server as fallback
+          if [ -d build ]; then
+            echo '🌐 Serving production build...'
+            npx serve -s build -l 3000
+          else
+            echo '🔧 Falling back to development server...'
+            npm start
+          fi
+        else
+          echo '🔧 Starting development server...'
+          npm start
+        fi
+      "
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - nginx
+
+  # =============================================================================
+  # MONITORING - NETDATA
+  # =============================================================================
+  netdata:
+    image: netdata/netdata:edge
+    container_name: nginx-netdata
+    restart: unless-stopped
+    networks:
+      - nginx-network
+    ports:
+      - "${NETDATA_PORT:-19999}:19999"
+    hostname: nginx-monitoring.${DOMAIN_NAME:-nginx.7gram.xyz}
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdata-config:/etc/netdata
+      - netdata-lib:/var/lib/netdata
+      - netdata-cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      NETDATA_CLAIM_TOKEN: ${NETDATA_CLAIM_TOKEN:-}
+      NETDATA_CLAIM_URL: ${NETDATA_CLAIM_URL:-https://app.netdata.cloud}
+      NETDATA_CLAIM_ROOMS: ${NETDATA_CLAIM_ROOMS:-}
+      NETDATA_EXTRA_DEB_PACKAGES: ${NETDATA_EXTRA_DEB_PACKAGES:-}
+      NETDATA_EXTRA_APK_PACKAGES: ${NETDATA_EXTRA_APK_PACKAGES:-}
+      NETDATA_DISABLE_TELEMETRY: ${NETDATA_DISABLE_TELEMETRY:-1}
+      TZ: ${TZ:-America/Toronto}
+      # Nginx-specific labels for organization
+      NETDATA_TAGS: "nginx proxy reverse-proxy ssl-termination"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19999/api/v1/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  nginx-network:
+    # Let Docker Compose automatically create the network to avoid iptables conflicts
+    # This prevents "iptables: No chain/target/match by that name" errors during deployment
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  acme-challenge:
+    name: nginx-acme-challenge
+    driver: local
+  nginx-logs:
+    name: nginx-logs
+    driver: local
+  # Netdata volumes
+  netdata-config:
+    name: nginx-netdata-config
+    driver: local
+  netdata-lib:
+    name: nginx-netdata-lib
+    driver: local
+  netdata-cache:
+    name: nginx-netdata-cache
+    driver: local
+  # Web interface volumes
+  web-interface-node-modules:
+    name: nginx-web-interface-node-modules
+    driver: local
+  web-interface-build:
+    name: nginx-web-interface-build
+    driver: local

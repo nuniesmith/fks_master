@@ -1,0 +1,292 @@
+{
+  "version": "2.1.0",
+  "lastUpdated": "2025-01-30T00:00:00Z",
+  "metadata": {
+    "description": "7Gram Network Services Configuration - Simplified",
+    "environment": "production",
+    "domain": "7gram.xyz",
+    "maintainer": "nuniesmith",
+    "dashboardType": "simplified"
+  },
+  "categories": {
+    "Media Services": {
+      "icon": "🎬",
+      "color": "media",
+      "priority": 1,
+      "description": "Stream movies, TV shows, music, and audiobooks"
+    },
+    "AI Services": {
+      "icon": "🤖",
+      "color": "ai",
+      "priority": 2,
+      "description": "AI chat, image generation, and machine learning tools"
+    },
+    "Media Management": {
+      "icon": "⚙️",
+      "color": "admin",
+      "priority": 3,
+      "description": "Download and organize your media library"
+    },
+    "System Services": {
+      "icon": "🛠️",
+      "color": "system",
+      "priority": 4,
+      "description": "Network monitoring, automation, and system management"
+    }
+  },
+  "services": {
+    "Media Services": [
+      {
+        "id": "emby",
+        "name": "Emby",
+        "icon": "🎬",
+        "description": "Premium media server for movies, TV shows, and music",
+        "url": "https://emby.7gram.xyz"
+      },
+      {
+        "id": "jellyfin",
+        "name": "Jellyfin",
+        "icon": "📺",
+        "description": "Free and open-source media server alternative",
+        "url": "https://jellyfin.7gram.xyz"
+      },
+      {
+        "id": "plex",
+        "name": "Plex",
+        "icon": "🍿",
+        "description": "Popular streaming media server with extensive features",
+        "url": "https://plex.7gram.xyz/web"
+      },
+      {
+        "id": "audiobookshelf",
+        "name": "AudioBookshelf",
+        "icon": "🎧",
+        "description": "Self-hosted audiobook and podcast server",
+        "url": "https://abs.7gram.xyz"
+      },
+      {
+        "id": "calibre-web",
+        "name": "Calibre Web",
+        "icon": "📖",
+        "description": "Clean web interface for your e-book library",
+        "url": "https://calibreweb.7gram.xyz"
+      },
+      {
+        "id": "navidrome",
+        "name": "Navidrome",
+        "icon": "🎵",
+        "description": "Music streaming server with web interface",
+        "url": "https://music.7gram.xyz"
+      },
+      {
+        "id": "nextcloud",
+        "name": "Nextcloud",
+        "icon": "☁️",
+        "description": "Personal cloud storage and file sync",
+        "url": "https://nc.7gram.xyz"
+      },
+      {
+        "id": "youtube-dl",
+        "name": "YouTube DL",
+        "icon": "📥",
+        "description": "Download and manage videos from YouTube and other platforms",
+        "url": "https://youtube.7gram.xyz"
+      }
+    ],
+    "AI Services": [
+      {
+        "id": "openwebui",
+        "name": "Open WebUI",
+        "icon": "🚀",
+        "description": "ChatGPT-like AI interface with multiple model support",
+        "url": "https://ai.7gram.xyz"
+      },
+      {
+        "id": "chat-interface",
+        "name": "AI Chat",
+        "icon": "💬",
+        "description": "Alternative AI chat interface with enhanced features",
+        "url": "https://chat.7gram.xyz"
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama API",
+        "icon": "🧠",
+        "description": "Direct access to local AI models via Ollama",
+        "url": "https://ollama.7gram.xyz"
+      },
+      {
+        "id": "stable-diffusion",
+        "name": "Stable Diffusion",
+        "icon": "🎨",
+        "description": "AI image generation service",
+        "url": "https://sd.7gram.xyz"
+      },
+      {
+        "id": "comfyui",
+        "name": "ComfyUI",
+        "icon": "⚡",
+        "description": "Advanced AI workflow interface for image generation",
+        "url": "https://comfy.7gram.xyz"
+      },
+      {
+        "id": "whisper",
+        "name": "Whisper ASR",
+        "icon": "🎙️",
+        "description": "Speech-to-text recognition service",
+        "url": "https://whisper.7gram.xyz"
+      },
+      {
+        "id": "code-assistant",
+        "name": "Code Assistant",
+        "icon": "👨‍💻",
+        "description": "AI-powered coding assistant and helper",
+        "url": "https://code.7gram.xyz"
+      }
+    ],
+    "Media Management": [
+      {
+        "id": "sonarr",
+        "name": "Sonarr",
+        "icon": "📺",
+        "description": "Automatic TV series management and monitoring",
+        "url": "https://sonarr.7gram.xyz"
+      },
+      {
+        "id": "radarr",
+        "name": "Radarr",
+        "icon": "🎬",
+        "description": "Movie collection manager with automatic downloads",
+        "url": "https://radarr.7gram.xyz"
+      },
+      {
+        "id": "lidarr",
+        "name": "Lidarr",
+        "icon": "🎵",
+        "description": "Music collection manager for automatic downloads",
+        "url": "https://lidarr.7gram.xyz"
+      },
+      {
+        "id": "readarr-audio",
+        "name": "Readarr Audiobooks",
+        "icon": "🎧",
+        "description": "Audiobook collection management and automation",
+        "url": "https://audiobooks.7gram.xyz"
+      },
+      {
+        "id": "readarr-ebooks",
+        "name": "Readarr E-books",
+        "icon": "📚",
+        "description": "E-book collection management and automation",
+        "url": "https://ebooks.7gram.xyz"
+      },
+      {
+        "id": "jackett",
+        "name": "Jackett",
+        "icon": "🔍",
+        "description": "Torrent indexer proxy for *arr applications",
+        "url": "https://jackett.7gram.xyz"
+      },
+      {
+        "id": "qbittorrent",
+        "name": "qBittorrent",
+        "icon": "⬇️",
+        "description": "Web-based torrent client with advanced features",
+        "url": "https://qbt.7gram.xyz"
+      },
+      {
+        "id": "filebot",
+        "name": "FileBot",
+        "icon": "📁",
+        "description": "Automated media file organization and renaming",
+        "url": "https://filebot.7gram.xyz"
+      }
+    ],
+    "System Services": [
+      {
+        "id": "server-router",
+        "name": "Server Router",
+        "icon": "🌐",
+        "description": "Interactive network router for Sullivan and Freddy servers",
+        "url": "/router/"
+      },
+      {
+        "id": "home-assistant",
+        "name": "Home Assistant",
+        "icon": "🏠",
+        "description": "Complete home automation platform",
+        "url": "https://home.7gram.xyz"
+      },
+      {
+        "id": "pihole",
+        "name": "Pi-hole",
+        "icon": "🛡️",
+        "description": "Network-wide ad blocker and DNS server",
+        "url": "https://pihole.7gram.xyz/admin"
+      },
+      {
+        "id": "grafana",
+        "name": "Grafana",
+        "icon": "📊",
+        "description": "System monitoring dashboards and analytics",
+        "url": "https://grafana.7gram.xyz"
+      },
+      {
+        "id": "prometheus",
+        "name": "Prometheus",
+        "icon": "📈",
+        "description": "Metrics collection and monitoring system",
+        "url": "https://prometheus.7gram.xyz"
+      },
+      {
+        "id": "uptime-kuma",
+        "name": "Uptime Kuma",
+        "icon": "📡",
+        "description": "Service uptime monitoring dashboard",
+        "url": "https://uptime.7gram.xyz"
+      },
+      {
+        "id": "portainer",
+        "name": "Portainer",
+        "icon": "🐳",
+        "description": "Docker container management interface",
+        "url": "https://portainer.7gram.xyz"
+      },
+      {
+        "id": "authelia",
+        "name": "Authelia",
+        "icon": "🔐",
+        "description": "Authentication and authorization service",
+        "url": "https://auth.7gram.xyz"
+      },
+      {
+        "id": "duplicati",
+        "name": "Duplicati",
+        "icon": "💾",
+        "description": "Encrypted backup solution with cloud storage support",
+        "url": "https://duplicati.7gram.xyz"
+      },
+      {
+        "id": "watchtower",
+        "name": "Watchtower",
+        "icon": "🔄",
+        "description": "Automated Docker container updates",
+        "url": "https://watchtower.7gram.xyz"
+      },
+      {
+        "id": "grocy",
+        "name": "Grocy",
+        "icon": "🛒",
+        "description": "Self-hosted groceries & household management",
+        "url": "https://grocy.7gram.xyz"
+      },
+      {
+        "id": "mealie",
+        "name": "Mealie",
+        "icon": "🍽️",
+        "description": "Recipe manager and meal planner",
+        "url": "https://mealie.7gram.xyz"
+      }
+    ]
+  }
+}

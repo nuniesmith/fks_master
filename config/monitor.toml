@@ -1,0 +1,122 @@
+# FKS Master Configuration - Updated for actual service ports
+
+[monitoring]
+check_interval_seconds = 30
+timeout_seconds = 10
+retry_attempts = 3
+batch_size = 5
+
+[alerts]
+enable_notifications = true
+high_latency_threshold_ms = 2000
+consecutive_failures_threshold = 3
+# webhook_url = "https://hooks.slack.com/your-webhook-url"
+
+# Service definitions - Updated with correct ports from testing
+[[services]]
+id = "fks_api"
+name = "FKS API Service"
+health_endpoint = "http://fks_api:8000/health"
+service_type = "Api"
+docker_container = "fks_api-fks_api-1"
+expected_response_time_ms = 500
+critical = true
+
+[[services]]
+id = "fks_auth"
+name = "FKS Authentication Service"
+health_endpoint = "http://fks_auth:4100/health"
+service_type = "Auth"
+docker_container = "fks_auth-fks_auth-1"
+expected_response_time_ms = 300
+critical = true
+
+[[services]]
+id = "fks_config"
+name = "FKS Configuration Service"
+health_endpoint = "http://fks_config:8002/health"
+service_type = "Config"
+docker_container = "fks_config-fks_config-1"
+expected_response_time_ms = 200
+critical = true
+
+[[services]]
+id = "fks_data"
+name = "FKS Data Service"
+health_endpoint = "http://fks_data:4200/health"
+service_type = "Database"
+docker_container = "fks_data-fks_data-1"
+expected_response_time_ms = 800
+critical = true
+
+[[services]]
+id = "fks_engine"
+name = "FKS Trading Engine"
+health_endpoint = "http://fks_engine:4300/health"
+service_type = "Engine"
+docker_container = "fks_engine-fks_engine-1"
+expected_response_time_ms = 200
+critical = true
+
+[[services]]
+id = "fks_execution"
+name = "FKS Execution Service"
+health_endpoint = "http://fks_execution:4700/health"
+service_type = "Execution"
+docker_container = "fks_execution-fks_execution-1"
+expected_response_time_ms = 150
+critical = true
+
+[[services]]
+id = "fks_nginx"
+name = "FKS Load Balancer"
+health_endpoint = "http://fks_nginx/"
+service_type = "Nginx"
+docker_container = "fks_nginx-fks_nginx-1"
+expected_response_time_ms = 100
+critical = true
+
+[[services]]
+id = "fks_training"
+name = "FKS ML Training Service"
+health_endpoint = "http://fks_training:4400/health"
+service_type = "Training"
+docker_container = "fks_training-fks_training-1"
+expected_response_time_ms = 2000
+critical = false
+
+[[services]]
+id = "fks_transformer"
+name = "FKS Data Transformer"
+health_endpoint = "http://fks_transformer:4500/health"
+service_type = "Transformer"
+docker_container = "fks_transformer-fks_transformer-1"
+expected_response_time_ms = 1000
+critical = false
+
+[[services]]
+id = "fks_worker"
+name = "FKS Background Worker"
+health_endpoint = "http://fks_worker:4600/health"
+service_type = "Worker"
+docker_container = "fks_worker-fks_worker-1"
+expected_response_time_ms = 500
+critical = false
+
+[[services]]
+id = "fks_web"
+name = "FKS Web Interface"
+health_endpoint = "http://fks_web:5173/health"
+service_type = "Web"
+docker_container = "fks_web-fks_web-1"
+expected_response_time_ms = 300
+critical = true
+
+[[services]]
+id = "fks_nodes"
+name = "FKS Node Network"
+health_endpoint = "http://fks_nodes:5000/health"
+service_type = "Web"
+docker_container = "fks_nodes-fks_nodes-1"
+expected_response_time_ms = 400
+critical = false

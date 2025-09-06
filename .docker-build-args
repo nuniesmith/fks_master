@@ -1,0 +1,11 @@
+# Docker Build Arguments for FKS
+# This file ensures containers are built with the correct UID/GID
+
+# User configuration - matches fks_user on host
+USER_ID=1001
+GROUP_ID=1001
+USER_NAME=appuser
+
+# These values will be used during docker build
+# Example usage:
+# docker compose build --build-arg USER_ID=1001 --build-arg GROUP_ID=1001

@@ -1,0 +1,32 @@
+{
+  "total_files": 203,
+  "by_extension": {
+    "NOEXT": 8,
+    ".md": 17,
+    ".yml": 15,
+    ".sh": 50,
+    ".sha256": 1,
+    ".ini": 1,
+    ".zone": 1,
+    ".types": 1,
+    ".conf": 31,
+    ".ssl": 1,
+    ".inc": 6,
+    ".disabled": 4,
+    ".ssl-backup": 1,
+    ".service": 1,
+    ".timer": 1,
+    ".html": 12,
+    ".json": 9,
+    ".js": 8,
+    ".php": 3,
+    ".css": 7,
+    ".ico": 1,
+    ".png": 11,
+    ".svg": 1,
+    ".pem": 3,
+    ".crt": 4,
+    ".key": 4,
+    ".cnf": 1
+  }
+}

@@ -1,6 +1,6 @@
-from fks_shared_python.config import get_settings  # type: ignore
-from fks_shared_python import get_settings as get_settings_alt  # type: ignore
-from fks_shared_python.logging import init_logging  # type: ignore
+from shared_python.config import get_settings  # type: ignore
+from shared_python import get_settings as get_settings_alt  # type: ignore
+from shared_python.logging import init_logging  # type: ignore
 
 
 def test_alias_imports():

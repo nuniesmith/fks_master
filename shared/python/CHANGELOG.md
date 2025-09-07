@@ -4,7 +4,7 @@
 
 ### Added
 
-- Canonical namespace `fks_shared_python` with consolidated modules.
+- Canonical namespace `shared_python` with consolidated modules.
 - Robust median/MAD fallback in `zscore_outliers`.
 - Explicit stdout JSON logging (force reconfigure) when `FKS_JSON_LOGS=1`.
 
@@ -19,7 +19,7 @@
 
 ### Deprecated
 
-- `shared_python` alias (will remain until at least 0.4.0). Use `fks_shared_python` instead.
+- `shared_python` alias (will remain until at least 0.4.0). Use `shared_python` instead.
 
 ## 0.1.0 - 2025-08-31
 

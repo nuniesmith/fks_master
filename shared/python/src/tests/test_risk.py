@@ -1,5 +1,5 @@
-from fks_shared_python.types import RiskParams, PositionSizingResult
-from fks_shared_python.risk import (
+from shared_python.types import RiskParams, PositionSizingResult
+from shared_python.risk import (
     kelly_fraction,
     fractional_position,
     volatility_target_position,

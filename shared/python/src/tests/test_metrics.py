@@ -1,4 +1,4 @@
-from fks_shared_python.metrics import (
+from shared_python.metrics import (
     Trade,
     win_rate_with_costs,
     cumulative_equity,

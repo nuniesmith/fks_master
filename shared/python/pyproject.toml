@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fks_shared_python"
+name = "shared_python"
 version = "0.2.0"
 description = "FKS shared Python utilities: config/env loading, logging helpers, risk utils, shared types"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [ { name = "FKS" } ]
+authors = [ { name = "nuniesmith" } ]
 dependencies = [
   "python-dotenv>=1.0.0",
   "pydantic>=2.0.0",

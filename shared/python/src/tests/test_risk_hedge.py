@@ -1,5 +1,5 @@
-from fks_shared_python.types import RiskParams
-from fks_shared_python.risk import composite_with_hedge, regime_uncertainty_score, hedge_position_size
+from shared_python.types import RiskParams
+from shared_python.risk import composite_with_hedge, regime_uncertainty_score, hedge_position_size
 
 
 def test_uncertainty_and_hedge_integration():

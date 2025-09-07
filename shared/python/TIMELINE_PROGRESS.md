@@ -6,7 +6,7 @@ Status codes: ✅ done | 🟡 in progress / partial | ⏳ not started | 🔄 pla
 
 | Week | Objective | Key Tasks | Status | Notes |
 |------|-----------|----------|--------|-------|
-| 1 | Docker centralization & shared submodules | Generate unified Docker templates; add `fks_shared_python` submodule/symlink to each service | ✅ | Symlinks + templates applied across all services (scripts executed) |
+| 1 | Docker centralization & shared submodules | Generate unified Docker templates; add `shared_python` submodule/symlink to each service | ✅ | Symlinks + templates applied across all services (scripts executed) |
 | 2 | API connections (`fks_data`) | Integrate config/env loading, placeholder data fetch adapters | ✅ | Unified adapter layer (base + Binance + Polygon), retries/backoff, JSON logging, manager integration + tests |
 | 3 | DB schema (`fks_data`) | Define schema + validate with JSON schemas | ⏳ | Requires inventory of existing DB models |
 | 4 | Feature pipeline (`fks_transformer`) | Wire preprocessing & feature utils (already in shared) | ⏳ | Shared utilities ready (zscore, regimes, cyclical) |
@@ -43,7 +43,7 @@ Status codes: ✅ done | 🟡 in progress / partial | ⏳ not started | 🔄 pla
 
 | Script | Path | Purpose |
 |--------|------|---------|
-| add_shared_submodule.sh | shared_scripts/tools/ | Add or update `fks_shared_python` submodule/symlink across services |
+| add_shared_submodule.sh | shared_scripts/tools/ | Add or update `shared_python` submodule/symlink across services |
 | centralize_docker.sh | shared_scripts/docker/ | Stub to sync shared Docker templates into each service |
 | monitor.sh | shared_scripts/utils/ | Basic monitoring stub (already present) |
 

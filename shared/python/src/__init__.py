@@ -6,7 +6,7 @@ can depend on a stable surface.
 
 Public surface aggregated here for ergonomic imports:
 
-from fks_shared_python import get_settings, Trade, composite_position, RiskParams
+from shared_python import get_settings, Trade, composite_position, RiskParams
 
 Add new exports ONLY if they are broadly reusable across >1 service.
 """

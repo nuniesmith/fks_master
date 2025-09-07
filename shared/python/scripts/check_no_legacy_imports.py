@@ -32,7 +32,7 @@ for py in ROOT.rglob("*.py"):
             violations.append(f"{rel}:{i}:{line.strip()}")
 
 if violations:
-    print("Found legacy shared_python imports (use fks_shared_python):", file=sys.stderr)
+    print("Found legacy shared_python imports (use shared_python):", file=sys.stderr)
     for v in violations:
         print("  "+v, file=sys.stderr)
     sys.exit(1)

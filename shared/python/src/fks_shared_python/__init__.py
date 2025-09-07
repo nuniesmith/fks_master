@@ -1,6 +1,6 @@
 """Service‑agnostic shared Python utilities.
 
-Canonical import path: ``fks_shared_python``.
+Canonical import path: ``shared_python``.
 Legacy alias supported (deprecated): ``shared_python``.
 """
 

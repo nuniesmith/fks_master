@@ -1,4 +1,4 @@
-from fks_shared_python.simulation import (
+from shared_python.simulation import (
     apply_slippage,
     simulate_gbm,
     monte_carlo_pnl,

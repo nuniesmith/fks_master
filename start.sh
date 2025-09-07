@@ -35,12 +35,12 @@ INCLUDE_GPU=0   # Enabled by --gpu flag
 INTERACTIVE=0   # Enabled by --interactive flag
 PREBUILD=${FKS_PREBUILD:-1}   # Build images first (default on). Disable with --no-prebuild or FKS_PREBUILD=0
 AFTER_PREBUILD=0              # Internal flag to skip --build on up after prebuild
-BUILD_PARALLEL=${FKS_BUILD_PARALLEL:-1}
+BUILD_PARALLEL=${FKS_BUILD_PARALLEL:-0}
 ALLOW_UNPREFIXED=${FKS_ALLOW_UNPREFIXED:-1}  # Allow discovery of directories without fks_ prefix
 FKS_DOCKER_USER="${FKS_DOCKER_USER:-nuniesmith}"
 FKS_DOCKER_REPO="${FKS_DOCKER_REPO:-fks}"
-PUSH_ENABLED=${FKS_PUSH:-1}   # Push images after successful build (optional)
-PUSH_PARALLEL=${FKS_PUSH_PARALLEL:-1}
+PUSH_ENABLED=${FKS_PUSH:-0}   # Push images after successful build (optional)
+PUSH_PARALLEL=${FKS_PUSH_PARALLEL:-0}
 PUSH_TAG="${FKS_IMAGE_TAG:-latest}"
 SINGLE_REPO_PUSH="${FKS_SINGLE_REPO:-1}"   # When 1, push all images to single repo <user>/<repo>:<service>-<tag>
 STRICT_PORT_MODE="${FKS_STRICT_PORT:-0}"   # When 1, abort start on detected host port conflicts
@@ -186,6 +186,7 @@ ORDER_SEQUENCE=(
     execution
     # 6. Core data ingestion so engine & ML layers have sources
     data
+    data_redis
     # 7. Engine orchestrates logic (after data + execution + nodes)
     engine
     # 8-9. ML / GPU related (can be excluded by default) training then transformer
@@ -193,6 +194,7 @@ ORDER_SEQUENCE=(
     transformer
     # 10. Worker / task scheduler (depends on engine, transformer outputs)
     worker
+    worker_redis
     # 11. Public API facade
     api
     # 12. Analytics / tooling (non-critical)
@@ -204,22 +206,29 @@ ORDER_SEQUENCE=(
 )
 
 declare -A HEALTH_ENDPOINTS=(
-    [config]="http://localhost:8002/health" [fks_config]="http://localhost:8002/health"
-    [auth]="http://localhost:4100/health" [fks_auth]="http://localhost:4100/health"
-    [api]="http://localhost:8000/health" [fks_api]="http://localhost:8000/health"
-    [docs]="http://localhost:8040/health" [fks_docs]="http://localhost:8040/health"
-    [engine]="http://localhost:4300/health" [fks_engine]="http://localhost:4300/health"
-    [nginx]="http://localhost/" [fks_nginx]="http://localhost/"
-    [master]="http://localhost:3030/health" [fks_master]="http://localhost:3030/health"
-    [worker]="http://localhost:4600/health" [fks_worker]="http://localhost:4600/health"
-    [web]="http://localhost:8080/health" [fks_web]="http://localhost:8080/health"
-    [data]="http://localhost:4200/health" [fks_data]="http://localhost:4200/health"
+    [config]="http://localhost:4800/health"      [fks_config]="http://localhost:4800/health"
+    [auth]="http://localhost:4100/health"        [fks_auth]="http://localhost:4100/health"
+    [api]="http://localhost:8000/health"         [fks_api]="http://localhost:8000/health"
+    [docs]="http://localhost:8040/health"        [fks_docs]="http://localhost:8040/health"
+    [engine]="http://localhost:4300/health"      [fks_engine]="http://localhost:4300/health"
+    [nginx]="http://localhost:80/health"         [fks_nginx]="http://localhost:80/health"
+    [master]="http://localhost:3030/health"      [fks_master]="http://localhost:3030/health"
+    [worker]="http://localhost:4600/health"      [fks_worker]="http://localhost:4600/health"
+    [worker_redis]="redis://localhost:6379/0"    [fks_worker_redis]="redis://localhost:6379/0"
+    [web]="http://localhost:8080/health"         [fks_web]="http://localhost:8080/health"
+    [data]="http://localhost:4200/health"        [fks_data]="http://localhost:4200/health"
+    [data_redis]="redis://localhost:6379/0"      [fks_data_redis]="redis://localhost:6379/0"
     [transformer]="http://localhost:4500/health" [fks_transformer]="http://localhost:4500/health"
-    [training]="http://localhost:8005/health" [fks_training]="http://localhost:8005/health"
-    [execution]="http://localhost:4700/health" [fks_execution]="http://localhost:4700/health"
-    [analyze]="http://localhost:4802/health" [fks_analyze]="http://localhost:4802/health"
-    [nodes]="http://localhost:5000/health" [fks_nodes]="http://localhost:5000/health"
-    [ninja]="http://localhost:4900/health" [fks_ninja]="http://localhost:4900/health"
+    [training]="http://localhost:8005/health"    [fks_training]="http://localhost:8005/health"
+    [execution]="http://localhost:4700/health"   [fks_execution]="http://localhost:4700/health"
+    [analyze]="http://localhost:4802/health"     [fks_analyze]="http://localhost:4802/health"
+    [nodes]="http://localhost:5000/health"       [fks_nodes]="http://localhost:5000/health"
+    [ninja]="http://localhost:4900/health"       [fks_ninja]="http://localhost:4900/health"
+)
+
+# Alternate health endpoints (e.g. HTTPS fallback / different scheme)
+declare -A ALT_HEALTH_ENDPOINTS=(
+    [nginx]="https://localhost/health" [fks_nginx]="https://localhost/health"
 )
 
 IFS=',' read -r -a EXCLUDES <<< "${FKS_EXCLUDE_SERVICES:-}"
@@ -293,6 +302,27 @@ check_health(){
         fi
         return 0
     fi
+    # Redis scheme handling (pseudo-service health)
+    if [[ "$url" == redis://* ]]; then
+        if command -v redis-cli >/dev/null 2>&1; then
+            local hostport db h p
+            hostport="${url#redis://}"        # localhost:6379/0
+            db="${hostport#*/}"               # after /
+            hostport="${hostport%%/*}"        # before /
+            h="${hostport%%:*}"; p="${hostport##*:}"
+            [[ -z "$db" || "$db" == "$hostport" ]] && db=0
+            if redis-cli -h "$h" -p "$p" -n "$db" PING >/dev/null 2>&1; then
+                log OK "$svc healthy (redis PING)"
+                return 0
+            else
+                log WARN "$svc redis ping failed ($h:$p db $db)"
+                return 1
+            fi
+        else
+            log INFO "$svc skipping redis health (redis-cli not installed)"
+            return 0
+        fi
+    fi
     local attempts=$((HEALTH_CHECK_TIMEOUT/HEALTH_CHECK_INTERVAL))
     log INFO "Health: $svc -> $url"
     for ((i=1;i<=attempts;i++)); do
@@ -302,6 +332,15 @@ check_health(){
         fi
         sleep "$HEALTH_CHECK_INTERVAL"
     done
+    # HTTPS fallback (e.g. nginx) if alternate defined
+    local alt="${ALT_HEALTH_ENDPOINTS[$svc]:-}"
+    if [[ -n "$alt" ]]; then
+        log INFO "$svc primary failed; trying alt: $alt"
+        if curl -k -fsS --max-time 4 "$alt" >/dev/null 2>&1; then
+            log OK "$svc healthy (alt)"
+            return 0
+        fi
+    fi
     log WARN "$svc health timeout (${HEALTH_CHECK_TIMEOUT}s)"
     return 1
 }
@@ -859,13 +898,55 @@ print_endpoints(){
     echo "Master: http://localhost:3030"
     echo "API:    http://localhost:8000"
     echo "Auth:   http://localhost:4100"
-    echo "Config: http://localhost:8002"
+    echo "Config: http://localhost:4800"
     echo "Data:   http://localhost:4200"
+    echo "Data Redis: redis://localhost:6379/0"
     echo "Engine: http://localhost:4300"
     echo "Worker: http://localhost:4600"
+    echo "Worker Redis: redis://localhost:6379/0"
     echo "Web:    http://localhost:8080"
     echo "NGINX:  http://localhost:80/"
     echo "Docs:   http://localhost:8040 (list: /docs/list, search: /docs/search?q=term)"
+    echo "Ninja:  http://localhost:4900/health"
+}
+
+# -------------- JWT / Gateway helpers --------------
+# Fetch a development JWT (access token) from auth service
+fetch_dev_jwt(){
+    local user="${AUTH_DEV_USER:-jordan}" pass="${AUTH_DEV_PASS:-567326}" auth_url="${AUTH_URL:-http://localhost:4100/login}"
+    if ! command -v python >/dev/null 2>&1; then
+        log ERR "python required to parse JSON (missing)"; return 1
+    fi
+    local json token
+    if ! json=$(curl -fsS -H 'Content-Type: application/json' -d "{\"username\":\"$user\",\"password\":\"$pass\"}" "$auth_url" 2>/dev/null); then
+        log ERR "login request failed ($auth_url)"; return 1
+    fi
+    token=$(python -c 'import sys,json; print(json.load(sys.stdin)["access_token"])' <<<"$json" 2>/dev/null || true)
+    if [[ -z "$token" ]]; then
+        log ERR "failed to extract access_token"; return 1
+    fi
+    echo "$token"
+}
+
+gateway_test(){
+    local api_url="${GATEWAY_TEST_API:-https://localhost/api/health}"; local insecure_flag="-k" # self-signed dev cert
+    log INFO "Gateway test (no token) -> expect 401"
+    local code
+    code=$(curl $insecure_flag -o /dev/null -w '%{http_code}' -s "$api_url" || echo 000)
+    if [[ "$code" != 401 ]]; then
+        log WARN "Unexpected code without token: $code (wanted 401)"
+    else
+        log OK "Got 401 without token (expected)"
+    fi
+    log INFO "Fetching dev JWT"
+    local token; if ! token=$(fetch_dev_jwt); then log ERR "Cannot obtain token"; return 1; fi
+    log INFO "Gateway test (with token) -> expect 200"
+    code=$(curl $insecure_flag -H "Authorization: Bearer $token" -o /dev/null -w '%{http_code}' -s "$api_url" || echo 000)
+    if [[ "$code" != 200 ]]; then
+        log ERR "Unexpected code with token: $code (wanted 200)"; return 1
+    fi
+    log OK "Gateway protected endpoint succeeded (200)"
+    return 0
 }
 
 # -------------- Monitor (Rust) --------------
@@ -891,6 +972,8 @@ Subcommands:
     services list           List discoverable services
     interactive             Interactive selection menu
     order                   Show resolved startup order (after discovery & GPU filtering)
+    gateway-jwt             Print a dev access JWT (uses AUTH_DEV_USER/PASS)
+    gateway-test            Run gateway auth flow test (401 then 200)
     all                     Alias for 'services start all'
     help                    Show this help
 
@@ -1000,6 +1083,12 @@ main(){
             ;;
         all)
             start_services all; print_endpoints
+            ;;
+        gateway-jwt)
+            fetch_dev_jwt || exit 1
+            ;;
+        gateway-test)
+            gateway_test || exit 1
             ;;
         services)
             local action="${args[1]:-start}"

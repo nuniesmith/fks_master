@@ -3,9 +3,8 @@ set -euo pipefail
 IFS=$'\n\t'
 shopt -s nullglob
 
-# Unified FKS master script: monitor (Rust) + service orchestration
+# Unified FKS master script: service orchestration (master provided via docker-compose)
 # Subcommands:
-#   monitor  (build & run fks_master)
 #   services (start/stop/status etc.)
 #   all      (default alias -> services start all)
 
@@ -174,33 +173,27 @@ is_gpu_service(){ local s="$1" base="${1#fks_}"; local g; for g in "${GPU_SERVIC
 # Explicit ordered startup sequence (supersedes tier grouping for build_order_all)
 # Rationale: dependency-aware linear ordering provided by user.
 ORDER_SEQUENCE=(
-    # 1. Orchestrator / control plane first so it can observe subsequent startups
+    # Control plane
     master
-    # 2. Configuration generator (produces env & manifests consumed by others)
+    # Config & auth early
     config
-    # 3. Auth boundary early so tokens/validation ready for downstream services
     auth
-    # 4. Node mesh foundation (fast rust/node graph) before execution layer
+    # Core infra
     nodes
-    # 5. Low-latency execution service atop node network
     execution
-    # 6. Core data ingestion so engine & ML layers have sources
+    # Data & engine
     data
-    data_redis
-    # 7. Engine orchestrates logic (after data + execution + nodes)
     engine
-    # 8-9. ML / GPU related (can be excluded by default) training then transformer
+    # ML / GPU (optional via --gpu)
     training
     transformer
-    # 10. Worker / task scheduler (depends on engine, transformer outputs)
+    # Background worker
     worker
-    worker_redis
-    # 11. Public API facade
+    # Public API & supporting services
     api
-    # 12. Analytics / tooling (non-critical)
     analyze
     docs
-    # 13-14. UI and ingress last
+    # UI then ingress
     web
     nginx
 )
@@ -214,10 +207,8 @@ declare -A HEALTH_ENDPOINTS=(
     [nginx]="http://localhost:80/"               [fks_nginx]="http://localhost:80/"
     [master]="http://localhost:3030/health"      [fks_master]="http://localhost:3030/health"
     [worker]="http://localhost:4600/health"      [fks_worker]="http://localhost:4600/health"
-    [worker_redis]="redis://localhost:6379/0"    [fks_worker_redis]="redis://localhost:6379/0"
     [web]="http://localhost:8080/health"         [fks_web]="http://localhost:8080/health"
     [data]="http://localhost:4200/health"        [fks_data]="http://localhost:4200/health"
-    [data_redis]="redis://localhost:6379/0"      [fks_data_redis]="redis://localhost:6379/0"
     [transformer]="http://localhost:4500/health" [fks_transformer]="http://localhost:4500/health"
     [training]="http://localhost:8005/health"    [fks_training]="http://localhost:8005/health"
     [execution]="http://localhost:4700/health"   [fks_execution]="http://localhost:4700/health"
@@ -629,6 +620,21 @@ start_services(){
         log WARN "No services matched selection '$sel'"
         return 0
     fi
+    # Ensure master service always runs (unless explicitly disabled)
+    if [[ "${FKS_NO_MASTER:-0}" != "1" ]]; then
+        local have_master=0 chosen_master=""
+        if service_exists master; then chosen_master="master"; elif service_exists fks_master; then chosen_master="fks_master"; fi
+        if [[ -n "$chosen_master" ]]; then
+            local s
+            for s in "${arr[@]}"; do
+                if [[ "$s" == "master" || "$s" == "fks_master" ]]; then have_master=1; break; fi
+            done
+            if [[ $have_master -eq 0 ]]; then
+                log INFO "Auto-including master service"
+                arr=("$chosen_master" "${arr[@]}")
+            fi
+        fi
+    fi
     # Exclude GPU services from 'all' unless explicitly included
     if [[ "$sel" == "all" && $INCLUDE_GPU -eq 0 ]]; then
         local filtered=() skipped=() s
@@ -949,19 +955,11 @@ gateway_test(){
     return 0
 }
 
-# -------------- Monitor (Rust) --------------
-monitor_run(){ local HOST="${HOST:-0.0.0.0}" PORT="${PORT:-3030}" CFG="${CONFIG_FILE:-config/monitor.toml}" RLOG="${RUST_LOG:-info}"; log INFO "Monitor start host=$HOST port=$PORT config=$CFG";
-    command -v cargo >/dev/null 2>&1 || { log ERR "cargo not installed"; exit 1; };
-    [[ -f "$CFG" ]] || log WARN "Config not found: $CFG (using defaults)";
-    if [[ ! -f target/release/fks_master ]]; then log INFO "Building master (release)"; cargo build --release >/dev/null; fi
-    export RUST_LOG="$RLOG"; log OK "Launching master"; exec ./target/release/fks_master --host "$HOST" --port "$PORT" --config "$CFG"; }
-
 # -------------- Usage --------------
 usage(){ cat <<'EOF'
 Usage: ./start.sh <subcommand> [options]
 
 Subcommands:
-    monitor                 Run Rust monitor (uses env HOST, PORT, CONFIG_FILE)
     services start [set]    Start services: set = all|core|list|custom <svc...>|<svc...>
     services stop           Stop all discovered services
     services stop core      Stop only core services
@@ -1013,6 +1011,7 @@ Environment:
     FKS_SINGLE_REPO=1               Consolidate all images into single repo (<user>/<repo>:<service>-<tag>)
     FKS_PORT_REMAPPINGS="svc:port,..."   Manual host port remaps (e.g. fks_analyze:4802,fks_config:4800)
     FKS_AUTO_REMAP=1               Auto choose next free port if conflict (creates temporary override)
+    FKS_NO_MASTER=1                Do NOT auto-include master (default master always added first)
 
 Examples:
     ./start.sh services start core
@@ -1020,7 +1019,6 @@ Examples:
     ./start.sh services start fks_api fks_web
     ./start.sh services start custom fks_api fks_engine
     USE_SHARED=1 ./start.sh services start fks_api
-    ./start.sh monitor
     ./start.sh --gpu            # start all including GPU services
     ./start.sh interactive      # interactive menu
     ./start.sh fks_api          # single service quick start
@@ -1056,14 +1054,11 @@ main(){
         esac
     done
     sub="${args[0]:-all}"
-    if [[ $INTERACTIVE -eq 1 && "$sub" != "monitor" ]]; then
+    if [[ $INTERACTIVE -eq 1 ]]; then
         interactive_menu
         return 0
     fi
     case "$sub" in
-        monitor)
-            monitor_run
-            ;;
         interactive)
             interactive_menu
             ;;

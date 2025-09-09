@@ -270,21 +270,30 @@ ws.send(JSON.stringify({ command_type: 'clear_subscription' }));
 - Live timestamp updates
 - Connection status indicator
 
-## Integration with FKS Services
+Integration with FKS Services
 
-The monitor automatically discovers and tracks these FKS services:
+Current canonical ports (host:container) discovered by the monitor:
 
-- **fks_api** - Main API service (Port 8000)
-- **fks_auth** - Authentication service (Port 8001)  
-- **fks_data** - Data service (Port 8002)
-- **fks_engine** - Trading engine (Port 8003)
-- **fks_transformer** - Data transformer (Port 8004)
-- **fks_training** - ML training service (Port 8005)
-- **fks_worker** - Background worker (Port 8006)
-- **fks_web** - Web interface (Port 3000)
-- **fks_config** - Configuration service (Port 8007)
-- **fks_execution** - Execution service (Port 8008)
-- **fks_nginx** - Load balancer (Port 80)
+| Service | Description | Port |
+|---------|-------------|------|
+| fks_master | Orchestrator / monitor API | 3030 (API), 9090 (dashboard) |
+| fks_api | Public API (FastAPI) | 8000 |
+| fks_auth | Authentication (Rust) | 4100 |
+| fks_config | Configuration / manifests | 4800 |
+| fks_data | Data service | 4200 |
+| fks_engine | Trading engine | 4300 |
+| fks_execution | Execution service | 4700 |
+| fks_transformer | Data transformer (GPU profile) | 4500 |
+| fks_training | ML training (GPU profile) | 8005 |
+| fks_worker | Background worker | 4600 |
+| fks_web | Web UI (NG build served via nginx) | 8080 -> 80 (nginx) |
+| fks_nginx | Ingress / gateway | 80 / 443 |
+| fks_docs | Docs site | 8040 |
+| fks_analyze | Analysis service | 4802 |
+| fks_nodes | Node mesh | 5000 |
+| fks_ninja | Ninja utility | 4900 |
+
+GPU-associated services have a docker-compose `profiles: ["gpu"]` label; they are excluded from default `all` startup unless `--gpu` flag is used or explicitly listed.
 
 ## Docker Integration
 

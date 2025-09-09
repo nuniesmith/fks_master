@@ -13,11 +13,11 @@ sys.path.insert(0, '/home/jordan/fks/src/python')
 
 import pytest
 pytest.skip("Skipping rithmic integration test by default (external dependency)", allow_module_level=True)  # type: ignore
-from Zservices.rithmic.config import RithmicConfig, DEFAULT_TEST_CONFIG  # noqa: E402
-from Zservices.rithmic.service import RithmicService
-from Zservices.rithmic.client import RithmicClient
-from Zservices.rithmic.data_handler import RithmicDataHandler
-from Zservices.rithmic.order_manager import RithmicOrderManager, OrderSide, create_market_order
+from services.rithmic.config import RithmicConfig, DEFAULT_TEST_CONFIG  # noqa: E402
+from services.rithmic.service import RithmicService
+from services.rithmic.client import RithmicClient
+from services.rithmic.data_handler import RithmicDataHandler
+from services.rithmic.order_manager import RithmicOrderManager, OrderSide, create_market_order
 
 async def test_rithmic_config():
     """Test Rithmic configuration"""
@@ -150,7 +150,7 @@ async def test_with_mock_data():
     data_handler = RithmicDataHandler(config)
     
     # Create mock market data message
-    from Zservices.rithmic.client import RithmicMessage
+    from services.rithmic.client import RithmicMessage
     from datetime import datetime
     
     mock_message = RithmicMessage(

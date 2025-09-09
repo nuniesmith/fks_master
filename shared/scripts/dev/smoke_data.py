@@ -30,7 +30,7 @@ summary: Dict[str, Any] = {"ok": True, "checks": []}
 
 try:
     # Import data service endpoint factory
-    from Zservices.data.main import _custom_endpoints  # type: ignore
+    from services.data.main import _custom_endpoints  # type: ignore
 except Exception as e:
     print("[smoke] ERROR: couldn't import services.data.main:_custom_endpoints:", e)
     traceback.print_exc()

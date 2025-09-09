@@ -211,7 +211,7 @@ declare -A HEALTH_ENDPOINTS=(
     [api]="http://localhost:8000/health"         [fks_api]="http://localhost:8000/health"
     [docs]="http://localhost:8040/health"        [fks_docs]="http://localhost:8040/health"
     [engine]="http://localhost:4300/health"      [fks_engine]="http://localhost:4300/health"
-    [nginx]="http://localhost:80/health"         [fks_nginx]="http://localhost:80/health"
+    [nginx]="http://localhost:80/"               [fks_nginx]="http://localhost:80/"
     [master]="http://localhost:3030/health"      [fks_master]="http://localhost:3030/health"
     [worker]="http://localhost:4600/health"      [fks_worker]="http://localhost:4600/health"
     [worker_redis]="redis://localhost:6379/0"    [fks_worker_redis]="redis://localhost:6379/0"
